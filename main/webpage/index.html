@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEX Controller</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="favicon.png">
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand"><span class="dot"></span><strong>Wall Hex</strong></div>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h3>Status</h3>
+            <canvas id="hexes" style="width: 100%; height:100%">
+            </canvas>
+      </section>
+
+      <section class="card">
+        <h3>Control</h3>
+        <div class="controls">
+          <div class="row">
+            <label class="label">Light Mode</label>
+            <div class="select-wrap">
+                <select class="select" id="modeSelect" onchange="select_mode();">
+                    <option value="0">Static</option>
+                    <option value="1">Fade</option>
+                    <option value="2">Starlight</option>
+                </select>
+            </div>
+          </div>
+            <div class="row">
+            <label class="label">Color paint</label>
+            <div class="color-box">
+                <input type="color" id="hexColor" value="#1f933c">
+            </div>
+            </div>
+          <div id="effect_speed" class="row">
+            <label class="label">Effect speed</label>
+            <div class="range">
+              <input id="rangeSpeed" onChange="sendSpeed();" type="range" step="1" min="50" max="200" value="100" />
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
+
+
+<script src="script.js"></script>

@@ -19,15 +19,17 @@ typedef enum hex_mode_t {
     FADE
 } hex_mode_t;
 
-void SetHexTargetColor(int hex_index, uint8_t r, uint8_t g, uint8_t b);
+void hex_setColor(int hex_index, uint8_t r, uint8_t g, uint8_t b);
 hex_mode_t hex_getMode();
 void hex_setMode(hex_mode_t mode);
 void hex_init();
 
 
-uint8_t getHexColor_r(int hex_index);
-uint8_t getHexColor_g(int hex_index);
-uint8_t getHexColor_b(int hex_index);
+uint8_t hex_getColor_r(int hex_index);
+uint8_t hex_getColor_g(int hex_index);
+uint8_t hex_getColor_b(int hex_index);
 
+void hex_setSpeed(uint8_t speed);
+uint8_t hex_getSpeed();
 
 #endif /* MAIN_HEX_H_ */

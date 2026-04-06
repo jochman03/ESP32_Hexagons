@@ -21,6 +21,8 @@ uint8_t target_color_buffer[HEX_COUNT * 3];
 // Color buffer Semaphores
 SemaphoreHandle_t buffer_mutex;
 SemaphoreHandle_t mode_mutex;
+SemaphoreHandle_t speed_mutex;
+
 
 typedef struct hex{
     bool active;
@@ -32,7 +34,9 @@ typedef struct hex{
 static void HEX_task(void *pvParameter);
 
 hex_mode_t animation_mode = STATIC;
+hex_mode_t animation_mode_buffer = STATIC;
 uint8_t animation_speed = 100;
+uint8_t animation_speed_buffer = 100;
 
 uint8_t starlight_timer = 0;
 const uint8_t starlight_timer_max = 50;
@@ -70,7 +74,7 @@ static bool step_color_towards(uint8_t current[3], const uint8_t target[3]){
         }
 
         uint8_t step = (maxc > 2) ? 2 : 1;
-        step = (step * animation_speed) / 100;
+        step = (step * animation_speed_buffer) / 100;
         if (step == 0) {
             step = 1;
         }
@@ -99,7 +103,7 @@ static bool step_color_towards(uint8_t current[3], const uint8_t target[3]){
             if (diff != 0) {
                 int16_t step = diff / 32;
 
-                step = (step * animation_speed) / 100;
+                step = (step * animation_speed_buffer) / 100;
                 if (step > 2) step = 2;
                 if (step < -2) step = -2;
 
@@ -145,12 +149,13 @@ void hex_init(){
 	ESP_ERROR_CHECK(led_strip_clear(strip));
     buffer_mutex = xSemaphoreCreateMutex();
     mode_mutex = xSemaphoreCreateMutex();
+    speed_mutex = xSemaphoreCreateMutex();
 
     ESP_LOGI(TAG, "init done");
 	xTaskCreatePinnedToCore(&HEX_task, "HEX_task", HEX_TASK_STACK_SIZE, NULL, HEX_TASK_PRIORITY, NULL, HEX_TASK_CORE_ID);
 }
 
-void SetHexTargetColor(int hex_index, uint8_t r, uint8_t g, uint8_t b){
+void hex_setColor(int hex_index, uint8_t r, uint8_t g, uint8_t b){
     xSemaphoreTake(buffer_mutex, portMAX_DELAY);
 
 	target_color_buffer[hex_index * 3] = r;
@@ -173,7 +178,21 @@ void hex_setMode(hex_mode_t mode){
     xSemaphoreGive(mode_mutex);
 }
 
-uint8_t getTargetHexColor_r(int hex_index){
+void hex_setSpeed(uint8_t speed){
+    xSemaphoreTake(speed_mutex, portMAX_DELAY);
+    animation_speed = speed;
+    xSemaphoreGive(speed_mutex);
+}
+
+uint8_t hex_getSpeed(){
+    uint8_t speed = 0;
+    xSemaphoreTake(speed_mutex, portMAX_DELAY);
+    speed = animation_speed;
+    xSemaphoreGive(speed_mutex);
+    return speed;
+}
+
+uint8_t hex_getColor_r(int hex_index){
     if(hex_index < 0 || hex_index >= HEX_COUNT) {
         ESP_LOGE(TAG, "Invalid LED index @ getTargetHexColor_r");
         return 0;
@@ -183,7 +202,7 @@ uint8_t getTargetHexColor_r(int hex_index){
     xSemaphoreGive(buffer_mutex);
     return color;
 }	
-uint8_t getTargetHexColor_g(int hex_index){
+uint8_t hex_getColor_g(int hex_index){
     if(hex_index < 0 || hex_index >= HEX_COUNT) {
         ESP_LOGE(TAG, "Invalid LED index @ getTargetHexColor_g");
         return 0;
@@ -193,7 +212,7 @@ uint8_t getTargetHexColor_g(int hex_index){
     xSemaphoreGive(buffer_mutex);
     return color;
 }	
-uint8_t getTargetHexColor_b(int hex_index){
+uint8_t hex_getColor_b(int hex_index){
     if(hex_index < 0 || hex_index >= HEX_COUNT) {
         ESP_LOGE(TAG, "Invalid LED index @ getTargetHexColor_b");
         return 0;
@@ -217,7 +236,16 @@ void getTargetHexColor(int hex_index, uint8_t* color_buffer){
 }
 
 static void HEX_animate(){
-    switch(animation_mode){
+
+    if (xSemaphoreTake(mode_mutex, portMAX_DELAY) == pdTRUE) {
+        animation_mode_buffer = animation_mode;
+        xSemaphoreGive(mode_mutex);
+    }
+    if (xSemaphoreTake(speed_mutex, portMAX_DELAY) == pdTRUE) {
+        animation_speed_buffer = animation_speed;
+        xSemaphoreGive(speed_mutex);
+    }
+    switch(animation_mode_buffer){
         case STATIC:
             for(uint8_t i = 0; i < HEX_COUNT; ++i){
                 uint8_t target_color[3];
@@ -231,7 +259,7 @@ static void HEX_animate(){
             break;
         case STARLIGHT:
             starlight_timer++;
-            if(starlight_timer >= (starlight_timer_max*animation_speed)/100){
+            if(starlight_timer >= (starlight_timer_max*animation_speed_buffer)/100){
                 starlight_timer = 0;
                 if(rand()%5 != 0){
                     int led = rand() % HEX_COUNT;
@@ -239,7 +267,7 @@ static void HEX_animate(){
                         hexes[led].current_color[0] = 0;
                         hexes[led].current_color[1] = 0;
                         hexes[led].current_color[2] = 0;
-                        hexes[led].hold = ((starlight_hold_min + rand()%starlight_hold_max)*100)/animation_speed;
+                        hexes[led].hold = ((starlight_hold_min + rand()%starlight_hold_max)*100)/animation_speed_buffer;
                         hexes[led].active = true;
                     }
                 }
@@ -272,7 +300,7 @@ static void HEX_animate(){
             break;
         case FADE:
             fade_timer++;
-            if(fade_timer >= (fade_timer_max*100)/animation_speed){
+            if(fade_timer >= (fade_timer_max*100)/animation_speed_buffer){
                 fade_index++;   
                 fade_timer = 0;
                 if(fade_index >= HEX_COUNT){
@@ -379,9 +407,8 @@ static void fade_test(){
 
 static void HEX_task(void *pvParameter){
     while(1){
-        starlight_test();
-        static_test();
-        fade_test();
+        HEX_animate();
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
