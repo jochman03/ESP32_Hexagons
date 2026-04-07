@@ -156,39 +156,43 @@ void hex_init(){
 }
 
 void hex_setColor(int hex_index, uint8_t r, uint8_t g, uint8_t b){
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-
-	target_color_buffer[hex_index * 3] = r;
-	target_color_buffer[hex_index * 3 + 1] = g;
-	target_color_buffer[hex_index * 3 + 2] = b;
-
-    xSemaphoreGive(buffer_mutex);
+    if (xSemaphoreTake(buffer_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        target_color_buffer[hex_index * 3] = r;
+        target_color_buffer[hex_index * 3 + 1] = g;
+        target_color_buffer[hex_index * 3 + 2] = b;
+        xSemaphoreGive(buffer_mutex);
+    }
 }
 
 hex_mode_t hex_getMode(){
-    xSemaphoreTake(mode_mutex, portMAX_DELAY);
-    hex_mode_t mode = animation_mode;
-    xSemaphoreGive(mode_mutex);
+    hex_mode_t mode = STATIC;
+    if (xSemaphoreTake(mode_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        mode = animation_mode;
+        xSemaphoreGive(mode_mutex);
+    }
     return mode;
 }
 
 void hex_setMode(hex_mode_t mode){
-    xSemaphoreTake(mode_mutex, portMAX_DELAY);
-    animation_mode = mode;
-    xSemaphoreGive(mode_mutex);
+    if (xSemaphoreTake(mode_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        animation_mode = mode;
+        xSemaphoreGive(mode_mutex);
+    }
 }
 
 void hex_setSpeed(uint8_t speed){
-    xSemaphoreTake(speed_mutex, portMAX_DELAY);
-    animation_speed = speed;
-    xSemaphoreGive(speed_mutex);
+    if (xSemaphoreTake(speed_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        animation_speed = speed;
+        xSemaphoreGive(speed_mutex);
+    }
 }
 
 uint8_t hex_getSpeed(){
     uint8_t speed = 0;
-    xSemaphoreTake(speed_mutex, portMAX_DELAY);
-    speed = animation_speed;
-    xSemaphoreGive(speed_mutex);
+    if (xSemaphoreTake(speed_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        speed = animation_speed;
+        xSemaphoreGive(speed_mutex);
+    }
     return speed;
 }
 
@@ -197,9 +201,11 @@ uint8_t hex_getColor_r(int hex_index){
         ESP_LOGE(TAG, "Invalid LED index @ getTargetHexColor_r");
         return 0;
     }
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    uint8_t color = target_color_buffer[hex_index * 3];
-    xSemaphoreGive(buffer_mutex);
+    uint8_t color = 0;
+    if (xSemaphoreTake(buffer_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        color = target_color_buffer[hex_index * 3];
+        xSemaphoreGive(buffer_mutex);
+    }
     return color;
 }	
 uint8_t hex_getColor_g(int hex_index){
@@ -207,9 +213,11 @@ uint8_t hex_getColor_g(int hex_index){
         ESP_LOGE(TAG, "Invalid LED index @ getTargetHexColor_g");
         return 0;
     }
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    uint8_t color = target_color_buffer[hex_index * 3 + 1];
-    xSemaphoreGive(buffer_mutex);
+    uint8_t color = 0;
+    if (xSemaphoreTake(buffer_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        color = target_color_buffer[hex_index * 3 + 1];
+        xSemaphoreGive(buffer_mutex);
+    }
     return color;
 }	
 uint8_t hex_getColor_b(int hex_index){
@@ -217,9 +225,11 @@ uint8_t hex_getColor_b(int hex_index){
         ESP_LOGE(TAG, "Invalid LED index @ getTargetHexColor_b");
         return 0;
     }
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    uint8_t color = target_color_buffer[hex_index * 3 + 2];
-    xSemaphoreGive(buffer_mutex);
+    uint8_t color = 0;
+    if (xSemaphoreTake(buffer_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        color = target_color_buffer[hex_index * 3 + 2];
+        xSemaphoreGive(buffer_mutex);
+    }
     return color;
 }	
 
@@ -228,20 +238,21 @@ void getTargetHexColor(int hex_index, uint8_t* color_buffer){
         ESP_LOGE(TAG, "Invalid LED index @ getTargetHexColor");
         return;
     }
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    color_buffer[0] = target_color_buffer[hex_index * 3];
-    color_buffer[1] = target_color_buffer[hex_index * 3 + 1];
-    color_buffer[2] = target_color_buffer[hex_index * 3 + 2];
-    xSemaphoreGive(buffer_mutex);
+    if (xSemaphoreTake(buffer_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        color_buffer[0] = target_color_buffer[hex_index * 3];
+        color_buffer[1] = target_color_buffer[hex_index * 3 + 1];
+        color_buffer[2] = target_color_buffer[hex_index * 3 + 2];
+        xSemaphoreGive(buffer_mutex);
+    }
 }
 
 static void HEX_animate(){
 
-    if (xSemaphoreTake(mode_mutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(mode_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         animation_mode_buffer = animation_mode;
         xSemaphoreGive(mode_mutex);
     }
-    if (xSemaphoreTake(speed_mutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(speed_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         animation_speed_buffer = animation_speed;
         xSemaphoreGive(speed_mutex);
     }

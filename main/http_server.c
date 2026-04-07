@@ -289,6 +289,7 @@ esp_err_t http_server_set_speed_handler(httpd_req_t *req){
     }
 
     buf[total_len] = '\0';
+    ESP_LOGI(TAG, "Received JSON: %s", buf);
 
     cJSON *root = cJSON_Parse(buf);
     if (!root) {
@@ -306,7 +307,7 @@ esp_err_t http_server_set_speed_handler(httpd_req_t *req){
     }
 	int speed = atoi(value->valuestring);
 
-	if(speed > 50 && speed < 200){
+	if(speed > 49 && speed < 201){
 		hex_setSpeed(speed);
 	}
 
@@ -328,6 +329,7 @@ esp_err_t http_server_set_mode_handler(httpd_req_t *req){
         httpd_resp_send_500(req);
         return ESP_FAIL;
     }
+    ESP_LOGI(TAG, "Received JSON: %s", buf);
 
     while (cur_len < total_len) {
         received = httpd_req_recv(req, buf + cur_len, total_len - cur_len);
