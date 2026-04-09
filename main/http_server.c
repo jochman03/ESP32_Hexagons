@@ -197,7 +197,7 @@ esp_err_t http_server_OTA_update_handler(httpd_req_t* req){
 			is_req_body_started = true;
 			
 			// Get the location of the .bin file content (remove the web form data)
-			char* body_start_p = strstr(ota_buff, "\r\n\r\n") + 4;  // better: define "\r\n\r\n", take strlen and add
+			char* body_start_p = strstr(ota_buff, "\r\n\r\n") + 4;
 			int body_part_len = recv_len - (body_start_p - ota_buff);
 			
 			printf("http_server_OTA_update_handler: OTA file size: %d\r\n", content_length);
@@ -308,7 +308,7 @@ esp_err_t http_server_set_speed_handler(httpd_req_t *req){
 	int speed = atoi(value->valuestring);
 
 	if(speed > 49 && speed < 201){
-		hex_setSpeed(speed);
+		hex_set_speed(speed);
 	}
 
     cJSON_Delete(root);
@@ -360,16 +360,16 @@ esp_err_t http_server_set_mode_handler(httpd_req_t *req){
 
 	switch(mode){
 		case 0:
-			hex_setMode(STATIC);
+			hex_set_mode(STATIC);
 			break;
 		case 1:
-			hex_setMode(FADE);
+			hex_set_mode(FADE);
 			break;
 		case 2:
-			hex_setMode(STARLIGHT);
+			hex_set_mode(STARLIGHT);
 			break;
 		default:
-			hex_setMode(STATIC);
+			hex_set_mode(STATIC);
 			break;
 	}
 
@@ -439,7 +439,7 @@ esp_err_t http_server_set_colors_handler(httpd_req_t *req){
         uint8_t g = (uint8_t)cJSON_GetArrayItem(color, 1)->valueint;
         uint8_t b = (uint8_t)cJSON_GetArrayItem(color, 2)->valueint;
 
-        hex_setColor(i, r, g, b);
+        hex_set_color(i, r, g, b);
     }
 
     cJSON_Delete(root);
@@ -457,9 +457,9 @@ esp_err_t http_server_get_colors_handler(httpd_req_t *req){
     for (int i = 0; i < HEX_COUNT; i++)
     {
         cJSON* rgb = cJSON_CreateArray();
-        cJSON_AddItemToArray(rgb, cJSON_CreateNumber(hex_getColor_r(i)));
-        cJSON_AddItemToArray(rgb, cJSON_CreateNumber(hex_getColor_g(i)));
-        cJSON_AddItemToArray(rgb, cJSON_CreateNumber(hex_getColor_b(i)));
+        cJSON_AddItemToArray(rgb, cJSON_CreateNumber(hex_get_color_r(i)));
+        cJSON_AddItemToArray(rgb, cJSON_CreateNumber(hex_get_color_g(i)));
+        cJSON_AddItemToArray(rgb, cJSON_CreateNumber(hex_get_color_b(i)));
 
         cJSON_AddItemToArray(colors, rgb);
     }
@@ -478,8 +478,8 @@ esp_err_t http_server_get_colors_handler(httpd_req_t *req){
 }
 
 esp_err_t http_server_get_status_handler(httpd_req_t *req){
-    int mode = (int)hex_getMode();
-    int speed = hex_getSpeed();
+    int mode = (int)hex_get_mode();
+    int speed = hex_get_speed();
 
     char response[64];
 

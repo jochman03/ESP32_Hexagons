@@ -2,7 +2,7 @@
  * wifi_app.c
  *
  *  Created on: 2 gru 2025
- *      Author: jakub
+ *      Author: jochman03
  */
 #include "esp_log_level.h"
 #include "esp_netif_types.h"
@@ -129,22 +129,20 @@ static void wifi_app_soft_ap_config(void){
 	esp_netif_ip_info_t ap_ip_info;
 	memset(&ap_ip_info, 0x00, sizeof(ap_ip_info));
 
-	esp_netif_dhcps_stop(esp_netif_ap);					///> must call this first
-	inet_pton(AF_INET, WIFI_AP_IP, &ap_ip_info.ip);		///> Assign access point's static IP, GW, and netmask
+	esp_netif_dhcps_stop(esp_netif_ap);	
+	inet_pton(AF_INET, WIFI_AP_IP, &ap_ip_info.ip);
 	inet_pton(AF_INET, WIFI_AP_GATEWAY, &ap_ip_info.gw);
 	inet_pton(AF_INET, WIFI_AP_NETMASK, &ap_ip_info.netmask);
-	ESP_ERROR_CHECK(esp_netif_set_ip_info(esp_netif_ap, &ap_ip_info));			///> Statically configure the network interface
-	ESP_ERROR_CHECK(esp_netif_dhcps_start(esp_netif_ap));						///> Start the AP DHCP server (for connecting stations e.g. your mobile device)
+	ESP_ERROR_CHECK(esp_netif_set_ip_info(esp_netif_ap, &ap_ip_info));	
+	ESP_ERROR_CHECK(esp_netif_dhcps_start(esp_netif_ap));
 
-	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));						///> Setting the mode as Access Point / Station Mode
-	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));			///> Set our configuration
-	ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_AP_BANDWIDTH));		///> Our default bandwidth 20 MHz
-	ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_STA_POWER_SAVE));						///> Power save set to "NONE"
-	
+	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
+	ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_AP_BANDWIDTH));	
+	ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_STA_POWER_SAVE));
 }
 
 // Main task for wifi application
-// params which can be passed to the task
 static void wifi_app_task(void* pvParameters){
 	wifi_app_queue_message_t msg;
 	// Initialize the event handler

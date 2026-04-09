@@ -13,23 +13,24 @@
 #define HEX_COUNT     15
 #define STRIP_GPIO    18
 
-typedef enum hex_mode_t {
+typedef enum {
     STATIC,
     STARLIGHT,
     FADE
-} hex_mode_t;
+} HexMode_T;
 
-void hex_setColor(int hex_index, uint8_t r, uint8_t g, uint8_t b);
-hex_mode_t hex_getMode();
-void hex_setMode(hex_mode_t mode);
+
 void hex_init();
 
+HexMode_T hex_get_mode();
+void hex_set_mode(HexMode_T mode);
 
-uint8_t hex_getColor_r(int hex_index);
-uint8_t hex_getColor_g(int hex_index);
-uint8_t hex_getColor_b(int hex_index);
+uint8_t hex_get_color_r(const int hexIndex);
+uint8_t hex_get_color_g(const int hexIndex);
+uint8_t hex_get_color_b(const int hexIndex);
+void hex_set_color(const int hexIndex, const uint8_t r, const uint8_t g, const uint8_t b);
 
-void hex_setSpeed(uint8_t speed);
-uint8_t hex_getSpeed();
+uint8_t hex_get_speed();
+void hex_set_speed(uint8_t speed);
 
 #endif /* MAIN_HEX_H_ */
