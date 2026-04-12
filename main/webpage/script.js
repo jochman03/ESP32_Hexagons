@@ -301,7 +301,7 @@ async function loadStatus() {
     
 }
 
-
 loadColors();
 loadStatus();
 select_mode();
+

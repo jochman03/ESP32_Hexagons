@@ -141,7 +141,8 @@ body {
 
 .select-wrap {
   position: relative;
-  max-width: 100px;
+  width: 100%;
+  max-width: 300px;
 }
 
 .select {
@@ -244,6 +245,7 @@ input[type="range"]::-moz-range-thumb {
 
 .textinput {
   width: 100%;
+  max-width: 300px;
   padding: 8px 12px;
   border-radius: var(--radius);
   border: 1px solid var(--accent-darker-color);
@@ -276,6 +278,7 @@ input[type="range"]::-moz-range-thumb {
   width: 40px;
   height: 22px;
   border-radius: 999px;
+  border: 1px var(--accent-darker-color) solid;
   background: var(--menu-transparent-color);
   position: relative;
   transition: background 0.15s ease;
@@ -301,6 +304,117 @@ input[type="range"]::-moz-range-thumb {
   transform: translateX(16px);
 }
 
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: 1px solid var(--accent-darker-color);
+  background: var(--input-background-color);
+  color: var(--input-text-color);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.btn:hover {
+  background: var(--background-light-color);
+}
+
+.btn-primary {
+  background: var(--accent-darker-color);
+  color: var(--text-color);
+}
+
+.btn-primary:hover {
+  background: var(--accent-transparent-color);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.static-ip-panel{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--background-light-color);
+}
+
+.group-title {
+  font-size: 12px;
+  color: var(--text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.kv {
+  padding: 10px;
+  border: 1px solid var(--accent-darker-color);
+  border-radius: var(--radius);
+  background: var(--background-light-color);
+}
+
+.kv-label {
+  font-size: 11px;
+  color: var(--text-muted-color);
+}
+
+.kv-value {
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.file-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.file-name {
+  font-size: 13px;
+  color: var(--text-muted-color);
+}
+
+input[type="file"] {
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent-darker-color);
+  background: var(--input-background-color);
+  color: var(--input-text-color);
+}
+
+.full {
+  width: 100%;
+}
+
+#otaFile{
+  width: 100%;
+  max-width: 300px;
+}
+
 @media (max-width: 680px) {
   .grid {
     grid-template-columns: 1fr;
@@ -314,4 +428,9 @@ input[type="range"]::-moz-range-thumb {
   .row > .label {
     width: 100%;
   }
+  .panel {
+    grid-template-columns: 1fr;
+  }
 }
+
+

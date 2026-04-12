@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEX Config</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="favicon.png">
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand"><strong>Hex Config</strong></div>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h3>AP Mode</h3>
+        <div class="stack">
+          <div class="group">
+            <div class="row">
+              <label class="label" for="apMode">Mode</label>
+              <div class="select-wrap">
+                <select class="select" id="apMode">
+                  <option value="0">Always</option>
+                  <option value="1">STA disconnected</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row">
+              <label class="label" for="apSsid">SSID</label>
+              <input class="textinput" id="apSsid" type="text" placeholder="Hex-AP">
+            </div>
+
+            <div class="row">
+              <label class="label" for="apPassword">Password</label>
+              <input class="textinput" id="apPassword" type="password" placeholder="Password">
+            </div>
+
+            <div class="row">
+              <label class="label" for="apChannel">Channel</label>
+              <div class="select-wrap">
+                <select class="select" id="apChannel">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                  <option value="7">7</option>
+                  <option value="8">8</option>
+                  <option value="9">9</option>
+                  <option value="10">10</option>
+                  <option value="11">11</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row">
+              <label class="label" for="apHidden">Hidden SSID</label>
+              <label class="toggle">
+                <input type="checkbox" id="apHidden">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              </label>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-primary" id="saveApBtn" type="button">Save AP config</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>STA Mode</h3>
+        <div class="stack">
+          <div class="group">
+            <p class="group-title">Configuration</p>
+
+            <div class="row">
+              <label class="label" for="staEnabled">Enabled</label>
+              <label class="toggle">
+                <input type="checkbox" id="staEnabled">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              </label>
+            </div>
+
+            <div class="row">
+              <label class="label" for="staSsid">SSID</label>
+              <input class="textinput" id="staSsid" type="text" placeholder="Wi-Fi SSID">
+            </div>
+
+            <div class="row">
+              <label class="label" for="staPassword">Password</label>
+              <input class="textinput" id="staPassword" type="password" placeholder="Wi-Fi Password">
+            </div>
+
+            <div class="row">
+              <label class="label" for="staDhcp">DHCP</label>
+              <label class="toggle">
+                <input type="checkbox" onclick="updateDHCP()" id="staDhcp" checked>
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              </label>
+            </div>
+            <div class="static-ip-panel" id="static-ip-panel">
+              <div class="row">
+                <label class="label" for="staIp">Static IP</label>
+                <input class="textinput" id="staIp" type="text" placeholder="192.168.1.50">
+              </div>
+
+              <div class="row">
+                <label class="label" for="staMask">Subnet mask</label>
+                <input class="textinput" id="staMask" type="text" placeholder="255.255.255.0">
+              </div>
+
+              <div class="row">
+                <label class="label" for="staGateway">Gateway</label>
+                <input class="textinput" id="staGateway" type="text" placeholder="192.168.1.1">
+              </div>
+
+              <div class="row">
+                <label class="label" for="staDns">DNS</label>
+                <input class="textinput" id="staDns" type="text" placeholder="8.8.8.8">
+              </div>  
+            </div>
+            <div class="actions">
+              <button class="btn btn-primary" id="connectStaBtn" type="button">Connect</button>
+            </div>
+          </div>
+
+          <div class="group">
+            <p class="group-title">Connection status</p>
+
+            <div class="row">
+              <label class="label" for="staStatus">Status:</label>
+              <label class="label" id="staStatus">Disconnected</label>
+            </div>
+            <div class="row">
+              <label class="label" for="staSSID">SSID:</label>
+              <label class="label" id="staSSID">-</label>
+            </div>
+            <div class="row">
+              <label class="label" for="staIP">IP address:</label>
+              <label class="label" id="staIP">-</label>
+            </div>
+            <div class="row">
+              <label class="label" for="staGateway">Gateway:</label>
+              <label class="label" id="staGateway">-</label>
+            </div>
+            <div class="row">
+              <label class="label" for="staSignal">Signal:</label>
+              <label class="label" id="staSignal">-</label>
+            </div>
+            <div class="actions">
+              <button class="btn btn-primary" id="connectStaBtn" type="button">Disconnect</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>OTA Update</h3>
+        <div class="stack">
+          <div class="group">
+            <div class="row">
+              <label class="label" for="otaFile">Firmware</label>
+              <input id="otaFile" type="file" accept=".bin,.ota,application/octet-stream">
+            </div>
+
+            <div class="file-row">
+              <button class="btn btn-primary" id="otaUploadBtn" type="button">Upload</button>
+              <span class="file-name" id="otaFileName">No file selected</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+
+<script src="config_script.js"></script>
+
+</html>
