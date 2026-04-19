@@ -8,6 +8,8 @@
 #ifndef MAIN_TASKS_COMMON_H_
 #define MAIN_TASKS_COMMON_H_
 
+extern QueueHandle_t wifi_queue;
+
 // LED strip task
 #define HEX_TASK_STACK_SIZE 			2048
 #define HEX_TASK_PRIORITY				5

@@ -415,6 +415,41 @@ input[type="file"] {
   max-width: 300px;
 }
 
+.password-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+}
+
+.password-wrap .textinput {
+  width: 100%;
+  padding-right: 36px; /* miejsce na ikonę */
+}
+
+.pass-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 28px;
+  width: 28px;
+  border-radius: var(--radius);
+  border: 1px solid var(--input-background-color);
+  background: var(--input-background-color);
+  color: var(--text-muted-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: 0.15s;
+}
+
+.pass-toggle:hover {
+  background: var(--background-light-color);
+  color: var(--text-color);
+}
+
 @media (max-width: 680px) {
   .grid {
     grid-template-columns: 1fr;

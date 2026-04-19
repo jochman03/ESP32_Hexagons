@@ -13,6 +13,9 @@
 #include "http_parser.h"
 #include "sys/param.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 
 #include "http_server.h"
 #include "freertos/idf_additions.h"
@@ -20,6 +23,8 @@
 #include "tasks_common.h"
 #include "cJSON.h"
 #include "hex.h"
+#include "config.h"
+#include "wifi.h"
 
 // Tag used for ESP serial messages
 static const char TAG[] = "http_server";
@@ -47,7 +52,7 @@ const esp_timer_create_args_t fw_update_reset_args = {
 };
 esp_timer_handle_t fw_update_reset;
 
-// Embedded files: jQuery, index.html, script.js, app.css, favicon.ico files
+// Embedded files: jQuery, index.html, script.js, app.css, favicon.ico, config.html, config_script.js files
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t script_js_start[] asm("_binary_script_js_start");
@@ -56,7 +61,10 @@ extern const uint8_t style_css_start[] asm("_binary_style_css_start");
 extern const uint8_t style_css_end[] asm("_binary_style_css_end");
 extern const uint8_t favicon_png_start[] asm("_binary_favicon_png_start");
 extern const uint8_t favicon_png_end[] asm("_binary_favicon_png_end");
-
+extern const uint8_t config_html_start[] asm("_binary_config_html_start");
+extern const uint8_t config_html_end[] asm("_binary_config_html_end");
+extern const uint8_t config_script_js_start[] asm("_binary_config_script_js_start");
+extern const uint8_t config_script_js_end[] asm("_binary_config_script_js_end");
 /*
 	Checks the g_fw_update_status and creates the fw_update_reset timer if the g_fw_update_status is true
 */
@@ -101,7 +109,7 @@ static void http_server_monitor(void* parameter){
 					g_fw_update_status = OTA_UPDATE_FAILED;
 					break;
 				default:
-					ESP_LOGI(TAG, "Something's wrong, I can feel it.");
+					ESP_LOGI(TAG, "Unidentified message");
 					break;
 			}
 		}
@@ -118,6 +126,19 @@ static esp_err_t http_server_index_html_handler(httpd_req_t* req){
 	ESP_LOGI(TAG, "index.html requested");
 	httpd_resp_set_type(req, "text/html");
 	httpd_resp_send(req, (const char*)index_html_start, index_html_end - index_html_start);
+	
+	return ESP_OK;
+}
+
+/*
+	Sends the config.html page
+	@param req HTTP request for which the uri needs to be handled
+	@return ESP_OK
+*/
+static esp_err_t http_server_config_html_handler(httpd_req_t* req){
+	ESP_LOGI(TAG, "config.html requested");
+	httpd_resp_set_type(req, "text/html");
+	httpd_resp_send(req, (const char*)config_html_start, config_html_end - config_html_start);
 	
 	return ESP_OK;
 }
@@ -144,6 +165,19 @@ static esp_err_t http_server_script_js_handler(httpd_req_t* req){
 	ESP_LOGI(TAG, "script.js requested");
 	httpd_resp_set_type(req, "application/javascript");
 	httpd_resp_send(req, (const char*)script_js_start, script_js_end - script_js_start);
+	
+	return ESP_OK;
+}
+
+/*
+	config script js get handler is requested when sccessing the web page
+	@param req HTTP request for which the uri needs to be handled
+	@return ESP_OK
+*/
+static esp_err_t http_server_config_script_js_handler(httpd_req_t* req){
+	ESP_LOGI(TAG, "config_script.js requested");
+	httpd_resp_set_type(req, "application/javascript");
+	httpd_resp_send(req, (const char*)config_script_js_start, config_script_js_end - config_script_js_start);
 	
 	return ESP_OK;
 }
@@ -268,6 +302,132 @@ esp_err_t http_server_OTA_status_handler(httpd_req_t* req){
 	return ESP_OK;
 }
 
+esp_err_t http_server_save_ap_config_handler(httpd_req_t *req){
+    int total_len = req->content_len;
+    int cur_len = 0;
+    int received = 0;
+
+    char *buf = malloc(total_len + 1);
+    if (!buf) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    while (cur_len < total_len) {
+        received = httpd_req_recv(req, buf + cur_len, total_len - cur_len);
+        if (received <= 0) {
+            free(buf);
+            return ESP_FAIL;
+        }
+        cur_len += received;
+    }
+
+    buf[total_len] = '\0';
+    ESP_LOGI(TAG, "Received JSON: %s", buf);
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON *ap_mode_json = cJSON_GetObjectItem(root, "ap_mode");
+    cJSON *ap_ssid_json = cJSON_GetObjectItem(root, "ap_ssid");
+    cJSON *ap_pass_json = cJSON_GetObjectItem(root, "ap_pass");
+    cJSON *ap_channel_json = cJSON_GetObjectItem(root, "ap_channel");
+    cJSON *ap_hidden_json = cJSON_GetObjectItem(root, "ap_hidden");
+
+    if (!cJSON_IsString(ap_mode_json) || !cJSON_IsString(ap_ssid_json)
+	 || !cJSON_IsString(ap_pass_json) || !cJSON_IsString(ap_channel_json)
+	|| !cJSON_IsString(ap_hidden_json)) {
+        cJSON_Delete(root);
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+		ESP_LOGE(TAG, "AP config save failed - invalid JSON");
+        return ESP_FAIL;
+    }
+	bool valid_creds = true;
+    app_wifi_config_full_t cfg = {0};
+	memset(&cfg, 0, sizeof(cfg));
+    if(!config_load(&cfg)){
+		cfg = default_config();
+	}
+
+	int ap_mode = atoi(ap_mode_json->valuestring);
+	if(ap_mode == 0 || ap_mode == 1){
+		cfg.ap.always_on = (bool)ap_mode;
+	}
+	else{
+		valid_creds = false;
+	}
+	if (cJSON_IsString(ap_ssid_json) && ap_ssid_json->valuestring) {
+		size_t len = strlen(ap_ssid_json->valuestring);
+		if(len <= MAX_SSID_CHARACTERS){
+			snprintf(cfg.ap.ssid, sizeof(cfg.ap.ssid), "%s", ap_ssid_json->valuestring);
+		}
+		else{
+			valid_creds = false;
+		}
+	}
+	else{
+		valid_creds = false;
+	}
+	if (cJSON_IsString(ap_pass_json) && ap_pass_json->valuestring) {
+		size_t len = strlen(ap_pass_json->valuestring);
+		if(len <= MAX_PASS_CHARACTERS){
+			snprintf(cfg.ap.password, sizeof(cfg.ap.password), "%s", ap_pass_json->valuestring);
+		}
+		else{
+			valid_creds = false;
+		}
+	}
+	else{
+		valid_creds = false;
+	}
+	int ap_channel = atoi(ap_channel_json->valuestring);
+	if(ap_channel >= 1 && ap_channel <= 11){
+		cfg.ap.channel = ap_channel;
+	}
+	else{
+		valid_creds = false;
+	}
+	int ap_hidden = atoi(ap_hidden_json->valuestring);
+	if(ap_hidden == 1 || ap_hidden == 0){
+		cfg.ap.hidden = (bool)ap_hidden;
+	}
+	else{
+		valid_creds = false;
+	}
+	if(valid_creds){
+		if(!config_update(&cfg)){
+			ESP_LOGE(TAG, "CONFIG SAVE FAILED");
+		} else {
+			ESP_LOGI(TAG, "CONFIG SAVED OK");
+		}
+	}
+	else{
+		ESP_LOGE(TAG, "AP config save failed - invalid values");
+		return ESP_FAIL;
+	}
+	ESP_LOGI(TAG, "Saving config...");
+
+    cJSON_Delete(root);
+    free(buf);
+	wifi_evt_t evt = {
+		.type = WIFI_EVT_RECONFIGURE
+	};
+
+	if (wifi_queue && xQueueSend(wifi_queue, &evt, pdMS_TO_TICKS(100)) != pdTRUE) {
+		ESP_LOGE(TAG, "Failed to send WIFI_EVT_RECONFIGURE");
+	}
+
+	ESP_LOGI(TAG, "AP config save successful");
+    httpd_resp_sendstr(req, "OK");
+
+    return ESP_OK;
+}
+
 esp_err_t http_server_set_speed_handler(httpd_req_t *req){
     int total_len = req->content_len;
     int cur_len = 0;
@@ -305,18 +465,13 @@ esp_err_t http_server_set_speed_handler(httpd_req_t *req){
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing value");
         return ESP_FAIL;
     }
-	int speed = atoi(value->valuestring);
 
+	int speed = atoi(value->valuestring);
 	if(speed > 49 && speed < 201){
 		hex_set_speed(speed);
 	}
 
-    cJSON_Delete(root);
-    free(buf);
-
-    httpd_resp_sendstr(req, "OK");
-
-    return ESP_OK;
+	return ESP_OK;
 }
 
 esp_err_t http_server_set_mode_handler(httpd_req_t *req){
@@ -492,6 +647,45 @@ esp_err_t http_server_get_status_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+esp_err_t http_server_get_config_handler(httpd_req_t *req){
+    app_wifi_config_full_t cfg = {0};
+	if(!config_load(&cfg)){
+		cfg = default_config();
+	}
+
+
+    cJSON *root = cJSON_CreateObject();
+
+    // AP
+    cJSON_AddNumberToObject(root, "ap_mode", cfg.ap.always_on ? 1 : 0);
+    cJSON_AddStringToObject(root, "ap_ssid", cfg.ap.ssid);
+    cJSON_AddStringToObject(root, "ap_pass", cfg.ap.password);
+    cJSON_AddNumberToObject(root, "ap_channel", cfg.ap.channel);
+    cJSON_AddNumberToObject(root, "ap_hidden", cfg.ap.hidden ? 1 : 0);
+
+    // STA
+    cJSON_AddStringToObject(root, "sta_ssid", cfg.sta.ssid);
+    cJSON_AddStringToObject(root, "sta_pass", cfg.sta.password);
+
+    cJSON_AddNumberToObject(root, "sta_dhcp", cfg.sta.dhcp ? 1 : 0);
+
+    cJSON_AddStringToObject(root, "sta_ip", cfg.sta.ip);
+    cJSON_AddStringToObject(root, "sta_mask", cfg.sta.netmask);
+    cJSON_AddStringToObject(root, "sta_gateway", cfg.sta.gateway);
+
+    cJSON_AddStringToObject(root, "sta_dns", cfg.sta.dns);
+
+    char *json = cJSON_PrintUnformatted(root);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+
+    cJSON_Delete(root);
+    free(json);
+
+    return ESP_OK;
+}
+
 /*
 	Sets up the default httpd server configuration
 	@return http server instance handle if successful, NULL otherwise
@@ -627,6 +821,43 @@ static httpd_handle_t http_server_configure(){
 			.user_ctx = NULL
 		};
 		httpd_register_uri_handler(http_server_handle, &setSpeed);
+
+		// register config.html handler
+		httpd_uri_t config_html = {
+			.uri = "/config.html",
+			.method = HTTP_GET,
+			.handler = http_server_config_html_handler,
+			.user_ctx = NULL
+		};
+		httpd_register_uri_handler(http_server_handle, &config_html);
+
+		// register config_script.js handler
+		httpd_uri_t config_script_js = {
+			.uri = "/config_script.js",
+			.method = HTTP_GET,
+			.handler = http_server_config_script_js_handler,
+			.user_ctx = NULL
+		};
+		httpd_register_uri_handler(http_server_handle, &config_script_js);
+
+		// register saveAPConfig handler
+		httpd_uri_t saveAPConfig = {
+			.uri = "/saveAPConfig",
+			.method = HTTP_POST,
+			.handler = http_server_save_ap_config_handler,
+			.user_ctx = NULL
+		};
+		httpd_register_uri_handler(http_server_handle, &saveAPConfig);
+
+		// register getConfig.json handler
+		httpd_uri_t getConfig = {
+			.uri = "/getConfig.json",
+			.method = HTTP_GET,
+			.handler = http_server_get_config_handler,
+			.user_ctx = NULL
+		};
+		httpd_register_uri_handler(http_server_handle, &getConfig);
+
 
 		return http_server_handle;
 	}

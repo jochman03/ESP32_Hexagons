@@ -14,7 +14,6 @@
 #define OTA_UPDATE_SUCCESSFUL 	1
 #define OTA_UPDATE_FAILED 		-1
 
-
 // Messages for the http monitor
 typedef enum http_server_message{
 	HTTP_MSG_WIFI_CONNECT_INIT = 0,
