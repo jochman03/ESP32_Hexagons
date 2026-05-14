@@ -130,35 +130,39 @@
               </div>  
             </div>
             <div class="actions">
-              <button class="btn btn-primary" id="connectStaBtn" type="button">Connect</button>
+              <button class="btn btn-primary" id="saveStaBtn" onclick="saveSTA()" type="button">Save STA</button>
             </div>
-          </div>
+            </div>
 
-          <div class="group">
-            <p class="group-title">Connection status</p>
+            <div class="group">
+              <p class="group-title">Connection status</p>
 
             <div class="row">
-              <label class="label" for="staStatus">Status:</label>
-              <label class="label" id="staStatus">Disconnected</label>
+              <label class="label" for="staStatusConnected">Status:</label>
+              <label class="label" id="staStatusConnected">Disconnected</label>
             </div>
+
             <div class="row">
-              <label class="label" for="staSSID">SSID:</label>
-              <label class="label" id="staSSID">-</label>
+              <label class="label" for="staStatusSSID">SSID:</label>
+              <label class="label" id="staStatusSSID">-</label>
             </div>
+
             <div class="row">
-              <label class="label" for="staIP">IP address:</label>
-              <label class="label" id="staIP">-</label>
+              <label class="label" for="staStatusIP">IP address:</label>
+              <label class="label" id="staStatusIP">-</label>
             </div>
+
             <div class="row">
-              <label class="label" for="staGateway">Gateway:</label>
-              <label class="label" id="staGateway">-</label>
+              <label class="label" for="staStatusGateway">Gateway:</label>
+              <label class="label" id="staStatusGateway">-</label>
             </div>
+
             <div class="row">
-              <label class="label" for="staSignal">Signal:</label>
-              <label class="label" id="staSignal">-</label>
+              <label class="label" for="staStatusSignal">Signal:</label>
+              <label class="label" id="staStatusSignal">-</label>
             </div>
             <div class="actions">
-              <button class="btn btn-primary" id="connectStaBtn" type="button">Disconnect</button>
+              <button class="btn btn-primary" id="disconnectStaBtn" onclick="disconnectSTA()" type="button">Disconnect</button>
             </div>
           </div>
         </div>

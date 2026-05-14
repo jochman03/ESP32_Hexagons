@@ -9,16 +9,13 @@
 #define MAIN_WIFI_H_
 
 #include "config.h"
-
-#define STA_CONNECTION_RETRY_COUNT 5
+#include "esp_netif.h"
 
 typedef enum {
-    WIFI_EVT_STA_START,
+    WIFI_EVT_STA_STARTED,
     WIFI_EVT_STA_CONNECTED,
     WIFI_EVT_STA_DISCONNECTED,
-    WIFI_EVT_STA_FAIL,
-    WIFI_EVT_STA_TIMEOUT,
-    WIFI_EVT_AP_START,
+    WIFI_EVT_AP_STARTED,
     WIFI_EVT_RECONFIGURE
 } wifi_evt_type_t;
 
@@ -29,11 +26,7 @@ typedef struct {
 
 void wifi_init(void);
 void wifi_start(const app_wifi_config_full_t* cfg);
-
-
-
-
-
-
+void wifi_reconfigure(void);
+esp_netif_t* wifi_get_sta_netif(void);
 
 #endif /* MAIN_WIFI_H_ */
