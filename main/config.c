@@ -6,11 +6,13 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "nvs.h"
+#include "hex.h"
 
 static const char* TAG = "CONFIG";
 
 #define CONFIG_NAMESPACE "wifi_cfg"
 #define CONFIG_KEY       "cfg"
+#define HEX_STATE_KEY    "hex_cfg"
 
 void config_set_defaults(app_wifi_config_full_t* cfg) {
     memset(cfg, 0, sizeof(*cfg));
@@ -220,4 +222,75 @@ bool config_clear_sta(void) {
     cfg.version = CONFIG_VERSION;
 
     return config_save(&cfg);
+}
+
+bool config_save_hex_state(const app_hex_config_t* state) {
+    if (state == NULL) {
+        return false;
+    }
+
+    nvs_handle_t nvs;
+    esp_err_t err = nvs_open(CONFIG_NAMESPACE, NVS_READWRITE, &nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "nvs_open failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    err = nvs_set_blob(nvs, HEX_STATE_KEY, state, sizeof(*state));
+
+    if (err == ESP_OK) {
+        err = nvs_commit(nvs);
+    }
+
+    nvs_close(nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "config_save_hex_state failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    ESP_LOGI(TAG, "hex state saved: mode=%u speed=%u size=%u", state->mode, state->speed,
+             (unsigned)sizeof(*state));
+
+    return true;
+}
+
+bool config_load_hex_state(app_hex_config_t* state) {
+    if (state == NULL) {
+        return false;
+    }
+
+    nvs_handle_t nvs;
+    size_t size = sizeof(*state);
+
+    esp_err_t err = nvs_open(CONFIG_NAMESPACE, NVS_READONLY, &nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "hex state nvs_open failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    err = nvs_get_blob(nvs, HEX_STATE_KEY, state, &size);
+    nvs_close(nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "hex state nvs_get_blob failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    if (size != sizeof(*state)) {
+        ESP_LOGW(TAG, "hex state size mismatch: stored=%u expected=%u", (unsigned)size,
+                 (unsigned)sizeof(*state));
+        return false;
+    }
+
+    if (!state->valid || state->version != HEX_STATE_VERSION) {
+        ESP_LOGW(TAG, "hex state version/valid mismatch");
+        return false;
+    }
+
+    ESP_LOGI(TAG, "hex state loaded: mode=%u speed=%u", state->mode, state->speed);
+
+    return true;
 }

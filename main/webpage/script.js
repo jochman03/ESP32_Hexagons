@@ -295,10 +295,38 @@ async function sendMode() {
 async function loadStatus() {
     const res = await fetch("/getStatus.json");
     const data = await res.json();
+    let hexEnabled = document.getElementById("hexEnabled");
 
     modeSelector.value = data.mode;
     document.getElementById("rangeSpeed").value = data.speed;
-    
+
+
+    if (data.enabled == "1" || data.enabled == 1 || data.enabled === true) {
+        hexEnabled.checked = true;
+    }
+    else {
+        hexEnabled.checked = false;
+    }
+}
+
+async function setHexEnabled() {
+    let hexEnabled = document.getElementById("hexEnabled");
+
+    const payload = {
+        enabled: hexEnabled.checked ? 1 : 0
+    };
+
+    const res = await fetch("/setHexEnabled", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+        console.error("ESP error:", await res.text());
+    }
 }
 
 loadColors();

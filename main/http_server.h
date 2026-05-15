@@ -1,8 +1,8 @@
 /*
- * http_server.h
+ *  http_server.h
  *
- *  Created on: 27 gru 2025
- *      Author: jakub
+ *  Created on: 27 Dec 2025
+ *  Author: jakub
  */
 
 #ifndef MAIN_HTTP_SERVER_H_

@@ -1,8 +1,8 @@
 /*
- * wifi.h
+ *  wifi.h
  *
- *  Created on: 14 apr 2026
- *      Author: jochman03
+ *  Created on: 14 Apr 2026
+ *  Author: jochman03
  */
 
 #ifndef MAIN_WIFI_H_

@@ -28,6 +28,7 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "wifi.h"
+#include "state_save.h"
 
 // Tag used for ESP serial messages
 static const char TAG[] = "http_server";
@@ -358,7 +359,6 @@ esp_err_t http_server_set_speed_handler(httpd_req_t* req) {
     if (speed > 49 && speed < 201) {
         hex_set_speed(speed);
     }
-
     return ESP_OK;
 }
 
@@ -418,7 +418,6 @@ esp_err_t http_server_set_mode_handler(httpd_req_t* req) {
 
     cJSON_Delete(root);
     free(buf);
-
     httpd_resp_sendstr(req, "OK");
 
     return ESP_OK;
@@ -487,7 +486,6 @@ esp_err_t http_server_set_colors_handler(httpd_req_t* req) {
 
     cJSON_Delete(root);
     free(buf);
-
     httpd_resp_sendstr(req, "OK");
     return ESP_OK;
 }
@@ -521,10 +519,12 @@ esp_err_t http_server_get_colors_handler(httpd_req_t* req) {
 esp_err_t http_server_get_status_handler(httpd_req_t* req) {
     int mode = (int)hex_get_mode();
     int speed = hex_get_speed();
+    bool enabled = hex_is_enabled();
 
-    char response[64];
+    char response[96];
 
-    snprintf(response, sizeof(response), "{\"mode\":%d,\"speed\":%d}", mode, speed);
+    snprintf(response, sizeof(response), "{\"mode\":%d,\"speed\":%d,\"enabled\":%d}", mode, speed,
+             enabled ? 1 : 0);
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, response);
@@ -828,6 +828,64 @@ esp_err_t http_server_disconnect_sta_handler(httpd_req_t* req) {
     return ESP_OK;
 }
 
+esp_err_t http_server_set_hex_enabled_handler(httpd_req_t* req) {
+    int total_len = req->content_len;
+    int cur_len = 0;
+    int received = 0;
+
+    char* buf = malloc(total_len + 1);
+    if (buf == NULL) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    while (cur_len < total_len) {
+        received = httpd_req_recv(req, buf + cur_len, total_len - cur_len);
+
+        if (received <= 0) {
+            free(buf);
+            return ESP_FAIL;
+        }
+
+        cur_len += received;
+    }
+
+    buf[total_len] = '\0';
+
+    cJSON* root = cJSON_Parse(buf);
+    free(buf);
+
+    if (root == NULL) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON* enabled_json = cJSON_GetObjectItem(root, "enabled");
+
+    if (!cJSON_IsNumber(enabled_json) && !cJSON_IsBool(enabled_json)) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing enabled");
+        return ESP_FAIL;
+    }
+
+    bool enabled = false;
+
+    if (cJSON_IsBool(enabled_json)) {
+        enabled = cJSON_IsTrue(enabled_json);
+    } else {
+        enabled = enabled_json->valueint != 0;
+    }
+
+    cJSON_Delete(root);
+
+    hex_set_enabled(enabled);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+
+    return ESP_OK;
+}
+
 /*
     Sets up the default httpd server configuration
     @return http server instance handle if successful, NULL otherwise
@@ -992,6 +1050,14 @@ static httpd_handle_t http_server_configure() {
                                      .handler = http_server_disconnect_sta_handler,
                                      .user_ctx = NULL};
         httpd_register_uri_handler(http_server_handle, &disconnectSTA);
+
+        // register setHexEnabled handler
+        httpd_uri_t setHexEnabled = {.uri = "/setHexEnabled",
+                                     .method = HTTP_POST,
+                                     .handler = http_server_set_hex_enabled_handler,
+                                     .user_ctx = NULL};
+
+        httpd_register_uri_handler(http_server_handle, &setHexEnabled);
 
         return http_server_handle;
     }

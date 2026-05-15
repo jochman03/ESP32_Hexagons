@@ -1,27 +1,19 @@
-/*
- * hex.c
- *
- *  Created on: 9 mar 2026
- *      Author: jochman03
- */
-
+#include <string.h>
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "tasks_common.h"
 #include "led_strip.h"
 #include "esp_log.h"
+
 #include "hex.h"
+#include "state_save.h"
 
 static const char* TAG = "HEX";
 led_strip_handle_t gStrip;
 
-// Target color buffer
-uint8_t gTargetColorBuffer[HEX_COUNT * 3];
-
-// Semaphores
-SemaphoreHandle_t gBufferMutex;
-SemaphoreHandle_t gModeMutex;
-SemaphoreHandle_t gSpeedMutex;
+// Semaphore
+static SemaphoreHandle_t gStateMutex;
 
 // Hex struct
 typedef struct {
@@ -32,12 +24,20 @@ typedef struct {
 
 // Function Prototypes
 static void hex_task(void* pvParameter);
+static bool hex_make_snapshot(void);
+static bool step_color(uint8_t currentColor[3], const uint8_t targetColor[3]);
 
 // Global animation variables
-HexMode_T gAnimationMode = STATIC;
-HexMode_T gAnimationModeBuffer = STATIC;
-uint8_t gAnimationSpeed = 100;
-uint8_t gAnimationSpeedBuffer = 100;
+static HexMode_T gAnimationMode = STATIC;
+static uint8_t gAnimationSpeed = 100;
+static bool gOutputEnabled = true;
+
+static HexMode_T gAnimationModeBuffer = STATIC;
+static uint8_t gAnimationSpeedBuffer = 100;
+static bool gOutputEnabledBuffer = true;
+
+static uint8_t gTargetColorBuffer[HEX_COUNT * 3];
+static uint8_t gTargetColorFrame[HEX_COUNT * 3];
 
 // Global starlight effect variables
 uint8_t gStarlightTimer = 0;
@@ -57,87 +57,7 @@ static bool color_equals(const uint8_t a[3], const uint8_t b[3]) {
     return (a[0] == b[0]) && (a[1] == b[1]) && (a[2] == b[2]);
 }
 
-static bool step_color(uint8_t currentColor[3], const uint8_t targetColor[3]) {
-    bool bTargetIsBlack = (targetColor[0] == 0 && targetColor[1] == 0 && targetColor[2] == 0);
-
-    if (color_equals(currentColor, targetColor)) {
-        return true;
-    }
-
-    if (bTargetIsBlack) {
-        uint8_t maxColor = currentColor[0];
-        if (currentColor[1] > maxColor) {
-            maxColor = currentColor[1];
-        }
-        if (currentColor[2] > maxColor) {
-            maxColor = currentColor[2];
-        }
-
-        if (maxColor <= 4) {
-            currentColor[0] = 0;
-            currentColor[1] = 0;
-            currentColor[2] = 0;
-            return true;
-        }
-
-        uint8_t step = (maxColor > 2) ? 2 : 1;
-        step = (step * gAnimationSpeedBuffer) / 100;
-        if (step == 0) {
-            step = 1;
-        }
-
-        uint16_t difference = (maxColor > step) ? (maxColor - step) : 0;
-
-        currentColor[0] =
-            (uint8_t)((((uint16_t)currentColor[0] * difference) + (maxColor / 2)) / maxColor);
-        currentColor[1] =
-            (uint8_t)((((uint16_t)currentColor[1] * difference) + (maxColor / 2)) / maxColor);
-        currentColor[2] =
-            (uint8_t)((((uint16_t)currentColor[2] * difference) + (maxColor / 2)) / maxColor);
-
-        uint8_t newMaxColor = currentColor[0];
-        if (currentColor[1] > newMaxColor) {
-            newMaxColor = currentColor[1];
-        }
-        if (currentColor[2] > newMaxColor) {
-            newMaxColor = currentColor[2];
-        }
-        if (newMaxColor <= 2) {
-            currentColor[0] = 0;
-            currentColor[1] = 0;
-            currentColor[2] = 0;
-            return true;
-        }
-    } else {
-        for (uint8_t j = 0; j < 3; j++) {
-            int16_t difference = (int16_t)targetColor[j] - (int16_t)currentColor[j];
-            if (difference != 0) {
-                int16_t step = difference / 32;
-                step = (step * gAnimationSpeedBuffer) / 100;
-                if (step > 2) {
-                    step = 2;
-                }
-                if (step < -2) {
-                    step = -2;
-                }
-                if (step == 0) {
-                    step = (difference > 0) ? 1 : -1;
-                }
-
-                int16_t updatedColor = (int16_t)currentColor[j] + step;
-                if (updatedColor < 0)
-                    updatedColor = 0;
-                if (updatedColor > 255)
-                    updatedColor = 255;
-                currentColor[j] = (uint8_t)updatedColor;
-            }
-        }
-    }
-    return color_equals(currentColor, targetColor);
-}
-
 void hex_init() {
-
     led_strip_config_t hStripConfig = {
         .strip_gpio_num = STRIP_GPIO,
         .max_leds = HEX_COUNT,
@@ -161,54 +81,97 @@ void hex_init() {
 
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&hStripConfig, &hRmtConfig, &gStrip));
     ESP_ERROR_CHECK(led_strip_clear(gStrip));
-    gBufferMutex = xSemaphoreCreateMutex();
-    gModeMutex = xSemaphoreCreateMutex();
-    gSpeedMutex = xSemaphoreCreateMutex();
+    gStateMutex = xSemaphoreCreateMutex();
+    if (gStateMutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create HEX state mutex");
+        return;
+    }
+
+    memset(gTargetColorBuffer, 0, sizeof(gTargetColorBuffer));
+    memset(gTargetColorFrame, 0, sizeof(gTargetColorFrame));
 
     ESP_LOGI(TAG, "init done");
     xTaskCreatePinnedToCore(&hex_task, "HEX_task", HEX_TASK_STACK_SIZE, NULL, HEX_TASK_PRIORITY,
                             NULL, HEX_TASK_CORE_ID);
 }
 
-void hex_set_color(const int hexIndex, const uint8_t r, const uint8_t g, const uint8_t b) {
-    if (xSemaphoreTake(gBufferMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+void hex_set_color(int hexIndex, uint8_t r, uint8_t g, uint8_t b) {
+    if (hexIndex < 0 || hexIndex >= HEX_COUNT) {
+        ESP_LOGE(TAG, "Invalid LED index @ hex_set_color: %d", hexIndex);
+        return;
+    }
+
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         gTargetColorBuffer[hexIndex * 3] = r;
         gTargetColorBuffer[hexIndex * 3 + 1] = g;
         gTargetColorBuffer[hexIndex * 3 + 2] = b;
-        xSemaphoreGive(gBufferMutex);
+        xSemaphoreGive(gStateMutex);
     }
+
+    state_save_notify();
 }
 
-HexMode_T hex_get_mode() {
+HexMode_T hex_get_mode(void) {
     HexMode_T mode = STATIC;
-    if (xSemaphoreTake(gModeMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         mode = gAnimationMode;
-        xSemaphoreGive(gModeMutex);
+        xSemaphoreGive(gStateMutex);
     }
+
     return mode;
 }
 
 void hex_set_mode(HexMode_T mode) {
-    if (xSemaphoreTake(gModeMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         gAnimationMode = mode;
-        xSemaphoreGive(gModeMutex);
+        xSemaphoreGive(gStateMutex);
     }
+
+    state_save_notify();
 }
 
 void hex_set_speed(uint8_t speed) {
-    if (xSemaphoreTake(gSpeedMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    if (speed == 0) {
+        speed = 1;
+    }
+
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         gAnimationSpeed = speed;
-        xSemaphoreGive(gSpeedMutex);
+        xSemaphoreGive(gStateMutex);
+    }
+
+    state_save_notify();
+}
+
+uint8_t hex_get_speed(void) {
+    uint8_t speed = 100;
+
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        speed = gAnimationSpeed;
+        xSemaphoreGive(gStateMutex);
+    }
+
+    return speed;
+}
+
+void hex_set_enabled(bool enabled) {
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        gOutputEnabled = enabled;
+        xSemaphoreGive(gStateMutex);
+        state_save_notify();
     }
 }
 
-uint8_t hex_get_speed() {
-    uint8_t speed = 0;
-    if (xSemaphoreTake(gSpeedMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-        speed = gAnimationSpeed;
-        xSemaphoreGive(gSpeedMutex);
+bool hex_is_enabled(void) {
+    bool enabled = true;
+
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        enabled = gOutputEnabled;
+        xSemaphoreGive(gStateMutex);
     }
-    return speed;
+
+    return enabled;
 }
 
 uint8_t hex_get_color_r(int hexIndex) {
@@ -217,10 +180,11 @@ uint8_t hex_get_color_r(int hexIndex) {
         return 0;
     }
     uint8_t color = 0;
-    if (xSemaphoreTake(gBufferMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         color = gTargetColorBuffer[hexIndex * 3];
-        xSemaphoreGive(gBufferMutex);
+        xSemaphoreGive(gStateMutex);
     }
+
     return color;
 }
 uint8_t hex_get_color_g(int hexIndex) {
@@ -229,9 +193,9 @@ uint8_t hex_get_color_g(int hexIndex) {
         return 0;
     }
     uint8_t color = 0;
-    if (xSemaphoreTake(gBufferMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         color = gTargetColorBuffer[hexIndex * 3 + 1];
-        xSemaphoreGive(gBufferMutex);
+        xSemaphoreGive(gStateMutex);
     }
     return color;
 }
@@ -241,34 +205,94 @@ uint8_t hex_get_color_b(int hexIndex) {
         return 0;
     }
     uint8_t color = 0;
-    if (xSemaphoreTake(gBufferMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         color = gTargetColorBuffer[hexIndex * 3 + 2];
-        xSemaphoreGive(gBufferMutex);
+        xSemaphoreGive(gStateMutex);
     }
     return color;
+}
+
+bool hex_get_state(app_hex_config_t* state) {
+    if (state == NULL) {
+        return false;
+    }
+
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
+        return false;
+    }
+
+    state->version = HEX_STATE_VERSION;
+    state->valid = true;
+    state->mode = (uint8_t)gAnimationMode;
+    state->speed = gAnimationSpeed;
+    state->enabled = gOutputEnabled;
+
+    memcpy(state->colors, gTargetColorBuffer, sizeof(state->colors));
+
+    xSemaphoreGive(gStateMutex);
+
+    return true;
+}
+
+bool hex_apply_state(const app_hex_config_t* state) {
+    if (state == NULL) {
+        return false;
+    }
+
+    if (!state->valid || state->version != HEX_STATE_VERSION) {
+        return false;
+    }
+
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
+        return false;
+    }
+
+    gAnimationMode = (HexMode_T)state->mode;
+    gAnimationSpeed = state->speed;
+    gOutputEnabled = state->enabled;
+
+    if (gAnimationSpeed == 0) {
+        gAnimationSpeed = 1;
+    }
+
+    memcpy(gTargetColorBuffer, state->colors, sizeof(gTargetColorBuffer));
+
+    xSemaphoreGive(gStateMutex);
+
+    return true;
 }
 
 static void get_target_hex_color(int hexIndex, uint8_t* color_buffer) {
     if (hexIndex < 0 || hexIndex >= HEX_COUNT) {
         ESP_LOGE(TAG, "Invalid LED index @ get_target_hex_color");
+        color_buffer[0] = 0;
+        color_buffer[1] = 0;
+        color_buffer[2] = 0;
         return;
     }
-    if (xSemaphoreTake(gBufferMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-        color_buffer[0] = gTargetColorBuffer[hexIndex * 3];
-        color_buffer[1] = gTargetColorBuffer[hexIndex * 3 + 1];
-        color_buffer[2] = gTargetColorBuffer[hexIndex * 3 + 2];
-        xSemaphoreGive(gBufferMutex);
-    }
+
+    color_buffer[0] = gTargetColorFrame[hexIndex * 3];
+    color_buffer[1] = gTargetColorFrame[hexIndex * 3 + 1];
+    color_buffer[2] = gTargetColorFrame[hexIndex * 3 + 2];
 }
 
 static void hex_animate() {
-    if (xSemaphoreTake(gModeMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-        gAnimationModeBuffer = gAnimationMode;
-        xSemaphoreGive(gModeMutex);
+    if (!hex_make_snapshot()) {
+        return;
     }
-    if (xSemaphoreTake(gSpeedMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
-        gAnimationSpeedBuffer = gAnimationSpeed;
-        xSemaphoreGive(gSpeedMutex);
+
+    if (!gOutputEnabledBuffer) {
+        for (uint8_t i = 0; i < HEX_COUNT; ++i) {
+            uint8_t black[3] = {0, 0, 0};
+
+            step_color(gHexes[i].currentColor, black);
+
+            led_strip_set_pixel(gStrip, i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
+                                gHexes[i].currentColor[2]);
+        }
+
+        led_strip_refresh(gStrip);
+        return;
     }
     switch (gAnimationModeBuffer) {
         case STATIC:
@@ -369,4 +393,103 @@ static void hex_task(void* pvParameter) {
         hex_animate();
         vTaskDelay(pdMS_TO_TICKS(20));
     }
+}
+
+static bool step_color(uint8_t currentColor[3], const uint8_t targetColor[3]) {
+    bool bTargetIsBlack = (targetColor[0] == 0 && targetColor[1] == 0 && targetColor[2] == 0);
+
+    if (color_equals(currentColor, targetColor)) {
+        return true;
+    }
+
+    if (bTargetIsBlack) {
+        uint8_t maxColor = currentColor[0];
+        if (currentColor[1] > maxColor) {
+            maxColor = currentColor[1];
+        }
+        if (currentColor[2] > maxColor) {
+            maxColor = currentColor[2];
+        }
+
+        if (maxColor <= 4) {
+            currentColor[0] = 0;
+            currentColor[1] = 0;
+            currentColor[2] = 0;
+            return true;
+        }
+
+        uint8_t step = (maxColor > 2) ? 2 : 1;
+        step = (step * gAnimationSpeedBuffer) / 100;
+        if (step == 0) {
+            step = 1;
+        }
+
+        uint16_t difference = (maxColor > step) ? (maxColor - step) : 0;
+
+        currentColor[0] =
+            (uint8_t)((((uint16_t)currentColor[0] * difference) + (maxColor / 2)) / maxColor);
+        currentColor[1] =
+            (uint8_t)((((uint16_t)currentColor[1] * difference) + (maxColor / 2)) / maxColor);
+        currentColor[2] =
+            (uint8_t)((((uint16_t)currentColor[2] * difference) + (maxColor / 2)) / maxColor);
+
+        uint8_t newMaxColor = currentColor[0];
+        if (currentColor[1] > newMaxColor) {
+            newMaxColor = currentColor[1];
+        }
+        if (currentColor[2] > newMaxColor) {
+            newMaxColor = currentColor[2];
+        }
+        if (newMaxColor <= 2) {
+            currentColor[0] = 0;
+            currentColor[1] = 0;
+            currentColor[2] = 0;
+            return true;
+        }
+    } else {
+        for (uint8_t j = 0; j < 3; j++) {
+            int16_t difference = (int16_t)targetColor[j] - (int16_t)currentColor[j];
+            if (difference != 0) {
+                int16_t step = difference / 32;
+                step = (step * gAnimationSpeedBuffer) / 100;
+                if (step > 2) {
+                    step = 2;
+                }
+                if (step < -2) {
+                    step = -2;
+                }
+                if (step == 0) {
+                    step = (difference > 0) ? 1 : -1;
+                }
+
+                int16_t updatedColor = (int16_t)currentColor[j] + step;
+                if (updatedColor < 0)
+                    updatedColor = 0;
+                if (updatedColor > 255)
+                    updatedColor = 255;
+                currentColor[j] = (uint8_t)updatedColor;
+            }
+        }
+    }
+    return color_equals(currentColor, targetColor);
+}
+
+static bool hex_make_snapshot(void) {
+    if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
+        return false;
+    }
+
+    gAnimationModeBuffer = gAnimationMode;
+    gAnimationSpeedBuffer = gAnimationSpeed;
+    gOutputEnabledBuffer = gOutputEnabled;
+
+    memcpy(gTargetColorFrame, gTargetColorBuffer, sizeof(gTargetColorFrame));
+
+    xSemaphoreGive(gStateMutex);
+
+    if (gAnimationSpeedBuffer == 0) {
+        gAnimationSpeedBuffer = 1;
+    }
+
+    return true;
 }

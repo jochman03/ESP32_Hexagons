@@ -26,7 +26,7 @@ static const char* TAG = "WIFI";
 static QueueHandle_t wifi_queue = NULL;
 
 static app_wifi_config_full_t gCFG = {0};
-static int gRetryCount = 0;
+static int gRetryCount = 0; 
 static bool gHttpStarted = false;
 static bool gTaskStarted = false;
 

@@ -14,6 +14,7 @@
 #include "wifi.h"
 #include "config.h"
 #include "hex.h"
+#include "state_save.h"
 
 #define LED_PIN            2
 #define WIFI_RECOVERY_GPIO 4
@@ -24,8 +25,15 @@ void app_main(void) {
     app_wifi_config_full_t cfg;
 
     hex_init();
+    state_save_init();
 
     wifi_init();
+
+    app_hex_config_t hex_state;
+
+    if (config_load_hex_state(&hex_state)) {
+        hex_apply_state(&hex_state);
+    }
 
     if (!config_load(&cfg)) {
         cfg = default_config();
@@ -39,14 +47,7 @@ void app_main(void) {
 
     wifi_start(&cfg);
 
-    gpio_reset_pin(LED_PIN);
-    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
-
     while (1) {
-        gpio_set_level(LED_PIN, 1);
-        vTaskDelay(pdMS_TO_TICKS(500));
-
-        gpio_set_level(LED_PIN, 0);
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
