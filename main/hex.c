@@ -8,6 +8,7 @@
 
 #include "hex.h"
 #include "state_save.h"
+#include "app_diagnostics.h"
 
 static const char* TAG = "HEX";
 led_strip_handle_t gStrip;
@@ -90,6 +91,7 @@ void hex_init() {
     memset(gTargetColorBuffer, 0, sizeof(gTargetColorBuffer));
     memset(gTargetColorFrame, 0, sizeof(gTargetColorFrame));
 
+    app_diagnostics_set(APP_DIAG_LED_OK);
     ESP_LOGI(TAG, "init done");
     xTaskCreatePinnedToCore(&hex_task, "HEX_task", HEX_TASK_STACK_SIZE, NULL, HEX_TASK_PRIORITY,
                             NULL, HEX_TASK_CORE_ID);

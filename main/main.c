@@ -15,6 +15,9 @@
 #include "config.h"
 #include "hex.h"
 #include "state_save.h"
+#include "ota_update.h"
+#include "app_diagnostics.h"
+#include "iot_client.h"
 
 #define LED_PIN            2
 #define WIFI_RECOVERY_GPIO 4
@@ -22,13 +25,16 @@
 static bool wifi_recovery_button_pressed(void);
 
 void app_main(void) {
+    app_diagnostics_init();
+    iot_client_init();
+
     app_wifi_config_full_t cfg;
 
     hex_init();
     state_save_init();
+    ota_update_init();
 
     wifi_init();
-
     app_hex_config_t hex_state;
 
     if (config_load_hex_state(&hex_state)) {
@@ -38,6 +44,8 @@ void app_main(void) {
     if (!config_load(&cfg)) {
         cfg = default_config();
     }
+    app_diagnostics_set(APP_DIAG_CONFIG_OK);
+
     if (wifi_recovery_button_pressed()) {
         cfg.ap.enabled = true;
         cfg.ap.always_on = true;
@@ -46,10 +54,7 @@ void app_main(void) {
     }
 
     wifi_start(&cfg);
-
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
+    app_diagnostics_start_ota_self_test();
 }
 
 static bool wifi_recovery_button_pressed(void) {

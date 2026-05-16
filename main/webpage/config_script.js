@@ -163,5 +163,121 @@ async function disconnectSTA() {
     document.getElementById("staPassword").value = "";
 }
 
+async function uploadOTA() {
+    const fileInput = document.getElementById("otaFile");
+    const fileName = document.getElementById("otaFileName");
+
+    if (!fileInput.files.length) {
+        console.error("No firmware file selected");
+        return;
+    }
+
+    const file = fileInput.files[0];
+    fileName.textContent = file.name;
+
+    console.log("Uploading OTA:", file.name, file.size, "bytes");
+
+    const res = await fetch("/OTAupdate", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/octet-stream"
+        },
+        body: file
+    });
+
+    if (!res.ok) {
+        console.error("OTA upload failed:", await res.text());
+        return;
+    }
+
+    console.log("OTA upload finished");
+
+    await checkOTAStatus();
+}
+
+async function checkOTAStatus() {
+    const res = await fetch("/OTAstatus", {
+        method: "POST"
+    });
+
+    if (!res.ok) {
+        console.error("OTA status failed:", await res.text());
+        return;
+    }
+
+    const data = await res.json();
+
+    console.log("OTA status:", data);
+
+    if (data.ota_update_status === 1) {
+        console.log("OTA successful. Device will restart soon.");
+    } else if (data.ota_update_status === -1) {
+        console.error("OTA failed");
+    } else {
+        console.log("OTA pending");
+    }
+}
+
+async function loadOTAStatus() {
+    const res = await fetch("/ota/status");
+
+    if (!res.ok) {
+        console.error("OTA status failed:", await res.text());
+        return;
+    }
+
+    const data = await res.json();
+
+    document.getElementById("otaCurrent").textContent =
+        data.current_version + " build " + data.current_build;
+
+    if (data.latest_version && data.latest_build > 0) {
+        document.getElementById("otaLatest").textContent =
+            data.latest_version + " build " + data.latest_build;
+    } else {
+        document.getElementById("otaLatest").textContent = "-";
+    }
+
+    document.getElementById("otaStatus").textContent = data.message;
+    document.getElementById("otaProgress").textContent = data.progress + "%";
+
+    document.getElementById("otaStartBtn").disabled =
+        !data.update_available || data.update_running;
+}
+
+async function checkUpdate() {
+    document.getElementById("otaStatus").textContent = "Checking...";
+
+    const res = await fetch("/ota/check", {
+        method: "POST"
+    });
+
+    if (!res.ok) {
+        console.error("OTA check failed:", await res.text());
+    }
+
+    await loadOTAStatus();
+}
+
+async function startUpdate() {
+    document.getElementById("otaStatus").textContent = "Starting update...";
+
+    const res = await fetch("/ota/start", {
+        method: "POST"
+    });
+
+    if (!res.ok) {
+        console.error("OTA start failed:", await res.text());
+    }
+
+    await loadOTAStatus();
+}
+
+document.getElementById("otaCheckBtn").addEventListener("click", checkUpdate);
+document.getElementById("otaStartBtn").addEventListener("click", startUpdate);
+
+setInterval(loadOTAStatus, 1000);
+loadOTAStatus();
+
 loadConfig();
 loadWifiStatus();

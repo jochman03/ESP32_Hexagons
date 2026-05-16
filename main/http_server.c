@@ -20,18 +20,21 @@
 #include "http_server.h"
 #include "freertos/idf_additions.h"
 #include "portmacro.h"
-#include "tasks_common.h"
 #include "cJSON.h"
+#include "esp_wifi.h"
+#include "esp_netif.h"
+
+#include "tasks_common.h"
 #include "hex.h"
 #include "config.h"
 #include "wifi.h"
-#include "esp_wifi.h"
-#include "esp_netif.h"
 #include "wifi.h"
 #include "state_save.h"
+#include "ota_update.h"
+#include "app_diagnostics.h"
 
 // Tag used for ESP serial messages
-static const char TAG[] = "http_server";
+static const char TAG[] = "HTTP_SERVER";
 
 // Firmware update status
 static int g_fw_update_status = OTA_UPDATE_PENDING;
@@ -55,8 +58,7 @@ const esp_timer_create_args_t fw_update_reset_args = {.callback =
                                                       .name = "fw_update_reset"};
 esp_timer_handle_t fw_update_reset;
 
-// Embedded files: jQuery, index.html, script.js, app.css, favicon.ico, config.html,
-// config_script.js files
+// Embedded files
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t script_js_start[] asm("_binary_script_js_start");
@@ -217,86 +219,108 @@ static esp_err_t http_server_favicon_png_handler(httpd_req_t* req) {
     @return ESP_OK, otherwise ESP_FAIL if timeout occurs and the update cannot be started.
 */
 esp_err_t http_server_OTA_update_handler(httpd_req_t* req) {
-    esp_ota_handle_t ota_handle;
-
+    esp_ota_handle_t ota_handle = 0;
     char ota_buff[1024];
+
     int content_length = req->content_len;
     int content_received = 0;
-    int recv_len;
-    bool is_req_body_started = false;
+
     bool flash_successful = false;
 
     const esp_partition_t* update_partition = esp_ota_get_next_update_partition(NULL);
 
-    do {
-        // Read the data for the request
-        if ((recv_len = httpd_req_recv(req, ota_buff, MIN(content_length, sizeof(ota_buff)))) < 0) {
-            // Check if timeout occured
-            if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) {
-                ESP_LOGI(TAG, "http_server_OTA_update_handler: Socket timeout");
-                continue; // Retry receiving if timeout occured
-            }
-            ESP_LOGI(TAG, "http_server_OTA_update_handler: Ota other Error %d", recv_len);
+    if (update_partition == NULL) {
+        ESP_LOGE(TAG, "OTA: No update partition found");
+        http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No OTA partition");
+        return ESP_FAIL;
+    }
+
+    if (content_length <= 0) {
+        ESP_LOGE(TAG, "OTA: Empty firmware file");
+        http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty firmware file");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "OTA: Starting update, size: %d bytes", content_length);
+    ESP_LOGI(TAG, "OTA: Writing to partition subtype %d at offset 0x%x", update_partition->subtype,
+             update_partition->address);
+
+    esp_err_t err = esp_ota_begin(update_partition, content_length, &ota_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "OTA: esp_ota_begin failed: %s", esp_err_to_name(err));
+        http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA begin failed");
+        return ESP_FAIL;
+    }
+
+    while (content_received < content_length) {
+        int remaining = content_length - content_received;
+        int recv_len = httpd_req_recv(req, ota_buff, MIN(remaining, sizeof(ota_buff)));
+
+        if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) {
+            ESP_LOGW(TAG, "OTA: Socket timeout, retrying");
+            continue;
+        }
+
+        if (recv_len <= 0) {
+            ESP_LOGE(TAG, "OTA: Receive failed: %d", recv_len);
+            esp_ota_abort(ota_handle);
+            http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA receive failed");
             return ESP_FAIL;
         }
-        printf("http_server_OTA_update_handler: OTA RX: %d of %d\r", content_received,
-               content_length);
 
-        // is this the first datra we are receiving
-        // If so, it will have the information in the header that we need
-        if (!is_req_body_started) {
-            is_req_body_started = true;
-
-            // Get the location of the .bin file content (remove the web form data)
-            char* body_start_p = strstr(ota_buff, "\r\n\r\n") + 4;
-            int body_part_len = recv_len - (body_start_p - ota_buff);
-
-            printf("http_server_OTA_update_handler: OTA file size: %d\r\n", content_length);
-
-            esp_err_t err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
-            if (err != ESP_OK) {
-                printf("http_server_OTA_update_handler: Error with OTA begin, cancelling OTA\n\r");
-                return ESP_FAIL;
-            } else {
-                printf("http_server_OTA_update_handler: writing to partition subtype %d\r\n",
-                       update_partition->subtype);
-            }
-
-            // Write this first part of the data
-            esp_ota_write(ota_handle, body_start_p, body_part_len);
-            content_received += body_part_len;
-        } else {
-            // Write OTA data
-            esp_ota_write(ota_handle, ota_buff, recv_len);
-            content_received += recv_len;
+        err = esp_ota_write(ota_handle, ota_buff, recv_len);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "OTA: esp_ota_write failed: %s", esp_err_to_name(err));
+            esp_ota_abort(ota_handle);
+            http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA write failed");
+            return ESP_FAIL;
         }
-    } while (recv_len > 0 && content_received < content_length);
 
-    if (esp_ota_end(ota_handle) == ESP_OK) {
-        // Update the partition
-        if (esp_ota_set_boot_partition(update_partition) == ESP_OK) {
-            const esp_partition_t* boot_partition = esp_ota_get_boot_partition();
-            ESP_LOGI(
-                TAG,
-                "http_server_OTA_update_handler: Next boot partition subtype %d at offset 0x%x",
-                boot_partition->subtype, boot_partition->address);
-            flash_successful = true;
-        } else {
-            ESP_LOGI(TAG, "http_server_OTA_update_handler: Flashed error!!!");
-        }
-    } else {
-        ESP_LOGI(TAG, "http_server_OTA_update_handler: esp_ota_end error!!!");
+        content_received += recv_len;
+
+        ESP_LOGI(TAG, "OTA: Received %d / %d bytes", content_received, content_length);
     }
-    // We won't update the global variables throughout the file, so send the message about the
-    // status
+
+    err = esp_ota_end(ota_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "OTA: esp_ota_end failed: %s", esp_err_to_name(err));
+        http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA end failed");
+        return ESP_FAIL;
+    }
+
+    err = esp_ota_set_boot_partition(update_partition);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "OTA: esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
+        http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA boot partition failed");
+        return ESP_FAIL;
+    }
+
+    const esp_partition_t* boot_partition = esp_ota_get_boot_partition();
+
+    ESP_LOGI(TAG, "OTA: Next boot partition subtype %d at offset 0x%x", boot_partition->subtype,
+             boot_partition->address);
+
+    flash_successful = true;
+
     if (flash_successful) {
         http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_SUCCESSFUL);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
     } else {
         http_server_monitor_send_message(HTTP_MSG_OTA_UPDATE_FAILED);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA failed");
+        return ESP_FAIL;
     }
+
     return ESP_OK;
 }
-
 /*
     Ota status handler responds with the firmware update status after the OTA update is started
     and responds with the compile time/date when the page is first requested
@@ -886,6 +910,107 @@ esp_err_t http_server_set_hex_enabled_handler(httpd_req_t* req) {
     return ESP_OK;
 }
 
+static const char* ota_state_to_string(ota_state_t state) {
+    switch (state) {
+        case OTA_STATE_IDLE:
+            return "idle";
+        case OTA_STATE_CHECKING:
+            return "checking";
+        case OTA_STATE_UPDATE_AVAILABLE:
+            return "update_available";
+        case OTA_STATE_NO_UPDATE:
+            return "no_update";
+        case OTA_STATE_DOWNLOADING:
+            return "downloading";
+        case OTA_STATE_VERIFYING:
+            return "verifying";
+        case OTA_STATE_SUCCESS:
+            return "success";
+        case OTA_STATE_FAILED:
+            return "failed";
+        case OTA_STATE_REBOOTING:
+            return "rebooting";
+        default:
+            return "unknown";
+    }
+}
+
+esp_err_t http_server_ota_status_handler(httpd_req_t* req) {
+    ota_status_t status;
+    ota_update_get_status(&status);
+
+    cJSON* root = cJSON_CreateObject();
+
+    if (root == NULL) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    cJSON_AddStringToObject(root, "state", ota_state_to_string(status.state));
+    cJSON_AddNumberToObject(root, "progress", status.progress);
+
+    cJSON_AddStringToObject(root, "current_version", status.current_version);
+    cJSON_AddNumberToObject(root, "current_build", status.current_build);
+
+    cJSON_AddStringToObject(root, "latest_version", status.latest_version);
+    cJSON_AddNumberToObject(root, "latest_build", status.latest_build);
+
+    cJSON_AddStringToObject(root, "message", status.message);
+
+    cJSON_AddBoolToObject(root, "update_available", status.update_available);
+    cJSON_AddBoolToObject(root, "update_running", status.update_running);
+
+    char* json = cJSON_PrintUnformatted(root);
+
+    if (json == NULL) {
+        cJSON_Delete(root);
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+
+    free(json);
+    cJSON_Delete(root);
+
+    return ESP_OK;
+}
+
+esp_err_t http_server_ota_check_handler(httpd_req_t* req) {
+    esp_err_t err = ota_update_check();
+
+    if (err != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA check failed");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
+
+    return ESP_OK;
+}
+
+esp_err_t http_server_ota_start_handler(httpd_req_t* req) {
+    esp_err_t err = ota_update_start();
+
+    if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                            "No update available or OTA already running");
+        return ESP_FAIL;
+    }
+
+    if (err != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA start failed");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"status\":\"started\"}");
+
+    return ESP_OK;
+}
+
 /*
     Sets up the default httpd server configuration
     @return http server instance handle if successful, NULL otherwise
@@ -912,7 +1037,7 @@ static httpd_handle_t http_server_configure() {
     config.stack_size = HTTP_SERVER_TASK_STACK_SIZE;
 
     // Increase uri handlers
-    config.max_uri_handlers = 20;
+    config.max_uri_handlers = 25;
 
     // Increase the timeout limits
     config.recv_wait_timeout = 10; // 10 s
@@ -1059,6 +1184,24 @@ static httpd_handle_t http_server_configure() {
 
         httpd_register_uri_handler(http_server_handle, &setHexEnabled);
 
+        httpd_uri_t ota_status = {.uri = "/ota/status",
+                                  .method = HTTP_GET,
+                                  .handler = http_server_ota_status_handler,
+                                  .user_ctx = NULL};
+        httpd_register_uri_handler(http_server_handle, &ota_status);
+
+        httpd_uri_t ota_check = {.uri = "/ota/check",
+                                 .method = HTTP_POST,
+                                 .handler = http_server_ota_check_handler,
+                                 .user_ctx = NULL};
+        httpd_register_uri_handler(http_server_handle, &ota_check);
+
+        httpd_uri_t ota_start = {.uri = "/ota/start",
+                                 .method = HTTP_POST,
+                                 .handler = http_server_ota_start_handler,
+                                 .user_ctx = NULL};
+        httpd_register_uri_handler(http_server_handle, &ota_start);
+
         return http_server_handle;
     }
     return NULL;
@@ -1067,6 +1210,9 @@ static httpd_handle_t http_server_configure() {
 void http_server_start(void) {
     if (http_server_handle == NULL) {
         http_server_handle = http_server_configure();
+        if (http_server_handle != NULL) {
+            app_diagnostics_set(APP_DIAG_HTTP_OK);
+        }
     }
 }
 

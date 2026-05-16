@@ -2,7 +2,7 @@
  *  state_save.h
  *
  *  Created on: 15 May 2026
- *  Author: jakub
+ *  Author: jochman03
  */
 
 #ifndef MAIN_STATE_SAVE_H_

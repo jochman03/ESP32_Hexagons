@@ -79,3 +79,7 @@ Desktop.ini
 .devcontainer
 .vscode
 .clang-format
+
+#tools and ota
+tools/
+ota/

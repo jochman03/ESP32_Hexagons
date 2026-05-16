@@ -20,13 +20,14 @@
 #include "config.h"
 #include "wifi.h"
 #include "http_server.h"
+#include "app_diagnostics.h"
 
 static const char* TAG = "WIFI";
 
 static QueueHandle_t wifi_queue = NULL;
 
 static app_wifi_config_full_t gCFG = {0};
-static int gRetryCount = 0; 
+static int gRetryCount = 0;
 static bool gHttpStarted = false;
 static bool gTaskStarted = false;
 
@@ -281,6 +282,7 @@ static void wifi_task(void* arg) {
             case WIFI_EVT_STA_CONNECTED:
                 ESP_LOGI(TAG, "STA connected");
                 gRetryCount = 0;
+                app_diagnostics_set(APP_DIAG_WIFI_OK);
                 start_http_once();
                 break;
 
@@ -310,6 +312,7 @@ static void wifi_task(void* arg) {
 
             case WIFI_EVT_AP_STARTED:
                 ESP_LOGI(TAG, "AP started");
+                app_diagnostics_set(APP_DIAG_WIFI_OK);
                 start_http_once();
                 break;
 

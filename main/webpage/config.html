@@ -173,13 +173,28 @@
         <div class="stack">
           <div class="group">
             <div class="row">
-              <label class="label" for="otaFile">Firmware</label>
-              <input id="otaFile" type="file" accept=".bin,.ota,application/octet-stream">
+              <label class="label">Current</label>
+              <label class="label" id="otaCurrent">-</label>
             </div>
 
-            <div class="file-row">
-              <button class="btn btn-primary" id="otaUploadBtn" type="button">Upload</button>
-              <span class="file-name" id="otaFileName">No file selected</span>
+            <div class="row">
+              <label class="label">Latest</label>
+              <label class="label" id="otaLatest">-</label>
+            </div>
+
+            <div class="row">
+              <label class="label">Status</label>
+              <label class="label" id="otaStatus">Idle</label>
+            </div>
+
+            <div class="row">
+              <label class="label">Progress</label>
+              <label class="label" id="otaProgress">0%</label>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-primary" id="otaCheckBtn" type="button">Check update</button>
+              <button class="btn btn-primary" id="otaStartBtn" type="button" disabled>Install update</button>
             </div>
           </div>
         </div>
