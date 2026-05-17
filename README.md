@@ -1,8 +1,6 @@
 # ESP32 Hexagons LED Controller
 
-An ESP32-based Wi-Fi LED controller for modular hexagonal lighting panels with a browser-based UI, persistent configuration storage and secure OTA firmware updates.
-
-The project combines embedded firmware, a responsive web interface and a local IoT backend into a self-contained lighting controller that can be configured and updated directly over Wi-Fi.
+A Wi-Fi LED controller for modular hexagonal LED panels with a browser UI, non volatile storage and secure OTA firmware updates.
 
 ---
 
@@ -10,31 +8,29 @@ The project combines embedded firmware, a responsive web interface and a local I
 
 The system is built around a single ESP32 firmware application responsible for:
 
-- driving the LED layout,
+- driving the LED,
 - hosting the web interface,
 - handling network configuration,
-- storing persistent settings in NVS,
+- storing configuration settings in NVS,
 - managing OTA firmware updates,
-- communicating with a local update server.
-
-The controller can operate entirely without a USB connection after initial flashing.
+- communicating with a local Linux server.
 
 ---
 
 ## User Interface
 
-The controller exposes a browser-based interface available directly from the ESP32.
+The controller exposes a local HTTP server available from local WiFi network or Access Point created by ESP32.
 
 The main UI provides:
 
-- visual preview of the hexagon LED layout,
+- visual preview of the hexagon layout,
 - interactive color painting on individual hexagons,
 - light mode selection,
 - output enable control,
 - effect speed adjustment,
 - responsive layout for desktop and mobile devices.
 
-![Main UI desktop view](images/main-ui.jpg)
+![Main UI view](images/main-ui.jpg)
 
 ## Configuration Interface
 
@@ -71,10 +67,8 @@ Available configuration options include:
 - static color mode
 - dynamic lighting effects
 - adjustable effect speed
-- per-hexagon painting
-- browser-side LED preview
-- synchronized firmware/UI state
-- LED state persistence
+- dynamic LED preview
+- synchronized firmware
 
 ### Reliability Features
 
