@@ -13,10 +13,6 @@ If any test fails or the device crashes, the ESP sends an HTTP request to the se
 - ESP32
 - Embedded C with ESP-IDF
 - FreeRTOS
-- Wi-Fi
-- HTTP server
-- NVS
-- OTA firmware updates
 
 ## Gallery
 
