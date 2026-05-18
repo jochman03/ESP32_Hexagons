@@ -1,81 +1,27 @@
 # ESP32 Hexagons LED Controller
 
-A Wi-Fi LED controller for modular hexagonal LED panels with a browser UI, non volatile storage and secure OTA firmware updates.
+## Overview
 
----
+Wi-Fi based LED controller for modular hexagonal LED panels.
+The ESP32 firmware provides LED control and web interface for configuration.
 
-## Project Overview
+Project focus on reliable OTA updates. Firmware versions are verified with a local server before installation. After updating, the device runs automatic tests to check if everything works correctly.
+If any test fails or the device crashes, the ESP sends an HTTP request to the server and performs a rollback to the previous firmware version.
 
-The system is built around a single ESP32 firmware application responsible for:
+## Tech Stack
 
-- driving the LED,
-- hosting the web interface,
-- handling network configuration,
-- storing configuration settings in NVS,
-- managing OTA firmware updates,
-- communicating with a local Linux server.
+- ESP32
+- Embedded C with ESP-IDF
+- FreeRTOS
+- Wi-Fi
+- HTTP server
+- NVS
+- OTA firmware updates
 
----
+## Gallery
 
-## User Interface
+### Main UI
+![Main UI](images/main-ui.jpg)
 
-The controller exposes a local HTTP server available from local WiFi network or Access Point created by ESP32.
-
-The main UI provides:
-
-- visual preview of the hexagon layout,
-- interactive color painting on individual hexagons,
-- light mode selection,
-- output enable control,
-- effect speed adjustment,
-- responsive layout for desktop and mobile devices.
-
-![Main UI view](images/main-ui.jpg)
-
-## Configuration Interface
-
-A separate configuration page provides access to maintenance and system settings.
-
-Available configuration options include:
-
-- Wi-Fi configuration,
-- AP/STA mode management,
-- DHCP/static IP selection,
-- firmware version inspection,
-- OTA update installation,
-- OTA progress monitoring,
-- system diagnostics.
-
-![Configuration page](images/config-ui.jpg)
-
----
-
-## Main Features
-
-### Networking
-
-- STA + AP operating modes
-- automatic AP fallback when STA connection fails
-- configurable AP settings
-- configurable STA settings
-- DHCP and static IP support
-- recovery button for forced AP mode
-- persistent network configuration storage
-
-### LED Control
-
-- static color mode
-- dynamic lighting effects
-- adjustable effect speed
-- dynamic LED preview
-- synchronized firmware
-
-### Reliability Features
-
-- secure OTA firmware updates
-- SHA-256 firmware verification
-- firmware version checking
-- staged OTA validation
-- automatic rollback after failed update
-- OTA status reporting to server backend
-- deferred NVS writes to reduce flash wear
+### Configuration page
+![Configuration](images/config-ui.jpg)
