@@ -365,8 +365,6 @@ async function loadStatus() {
     } else {
         hexEnabled.checked = false;
     }
-
-    select_mode();
 }
 
 async function setHexEnabled() {

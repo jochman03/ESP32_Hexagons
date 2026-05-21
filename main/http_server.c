@@ -1,10 +1,3 @@
-/*
- * http_server.c
- *
- *  Created on: 27 gru 2025
- *      Author: jakub
- */
-
 #include "esp_err.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -389,25 +382,33 @@ esp_err_t http_server_set_speed_handler(httpd_req_t* req) {
 esp_err_t http_server_set_mode_handler(httpd_req_t* req) {
     int total_len = req->content_len;
     int cur_len = 0;
-    int received = 0;
+
+    if (total_len <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body");
+        return ESP_FAIL;
+    }
 
     char* buf = malloc(total_len + 1);
     if (!buf) {
         httpd_resp_send_500(req);
         return ESP_FAIL;
     }
-    ESP_LOGI(TAG, "Received JSON: %s", buf);
 
     while (cur_len < total_len) {
-        received = httpd_req_recv(req, buf + cur_len, total_len - cur_len);
+        int received = httpd_req_recv(req, buf + cur_len, total_len - cur_len);
+
         if (received <= 0) {
             free(buf);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to read body");
             return ESP_FAIL;
         }
+
         cur_len += received;
     }
 
     buf[total_len] = '\0';
+
+    ESP_LOGI(TAG, "Received JSON: %s", buf);
 
     cJSON* root = cJSON_Parse(buf);
     if (!root) {
@@ -423,30 +424,36 @@ esp_err_t http_server_set_mode_handler(httpd_req_t* req) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing value");
         return ESP_FAIL;
     }
+
     int mode = atoi(value->valuestring);
 
     switch (mode) {
         case 0:
             hex_set_mode(STATIC);
             break;
+
         case 1:
             hex_set_mode(FADE);
             break;
+
         case 2:
             hex_set_mode(STARLIGHT);
             break;
+
         default:
-            hex_set_mode(STATIC);
-            break;
+            cJSON_Delete(root);
+            free(buf);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid mode");
+            return ESP_FAIL;
     }
 
     cJSON_Delete(root);
     free(buf);
+
     httpd_resp_sendstr(req, "OK");
 
     return ESP_OK;
 }
-
 esp_err_t http_server_set_colors_handler(httpd_req_t* req) {
     char* buf = NULL;
     int total_len = req->content_len;
