@@ -223,7 +223,7 @@ bool hex_get_state(app_hex_config_t* state) {
         return false;
     }
 
-    state->version = HEX_STATE_VERSION;
+    state->version = CONFIG_VERSION;
     state->valid = true;
     state->mode = (uint8_t)gAnimationMode;
     state->speed = gAnimationSpeed;
@@ -241,7 +241,7 @@ bool hex_apply_state(const app_hex_config_t* state) {
         return false;
     }
 
-    if (!state->valid || state->version != HEX_STATE_VERSION) {
+    if (!state->valid || state->version != CONFIG_VERSION) {
         return false;
     }
 

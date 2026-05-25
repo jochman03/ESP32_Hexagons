@@ -25,6 +25,7 @@ static const char* TAG = "OTA_UPDATE";
 
 static ota_status_t g_ota_status;
 static SemaphoreHandle_t g_ota_mutex = NULL;
+static ota_trigger_t g_ota_trigger = OTA_TRIGGER_MANUAL;
 
 static char g_manifest_url[160] = {0};
 static char g_firmware_url[160] = {0};
@@ -35,6 +36,7 @@ static void ota_set_running(bool running);
 static void ota_task(void* arg);
 static void sha256_to_hex(const uint8_t* sha, char* out_hex, size_t out_size);
 static const char* ota_state_to_message(ota_state_t state);
+static const char* ota_trigger_to_string(ota_trigger_t trigger);
 
 static void ota_set_status(ota_state_t state, int progress, const char* message) {
     if (g_ota_mutex != NULL) {
@@ -229,13 +231,12 @@ esp_err_t ota_update_check(void) {
     return ESP_OK;
 }
 
-esp_err_t ota_update_start(void) {
+esp_err_t ota_update_start(ota_trigger_t trigger) {
     bool can_start = false;
 
     if (g_ota_mutex != NULL) {
         xSemaphoreTake(g_ota_mutex, portMAX_DELAY);
     }
-
     can_start = g_ota_status.update_available && !g_ota_status.update_running;
 
     if (g_ota_mutex != NULL) {
@@ -245,7 +246,7 @@ esp_err_t ota_update_start(void) {
     if (!can_start) {
         return ESP_ERR_INVALID_STATE;
     }
-
+    g_ota_trigger = trigger;
     BaseType_t task_ok = xTaskCreate(ota_task, "ota_task", 8192, NULL, 5, NULL);
 
     if (task_ok != pdPASS) {
@@ -379,8 +380,9 @@ static void ota_task(void* arg) {
     mbedtls_sha256_init(&sha_ctx);
     mbedtls_sha256_starts(&sha_ctx, 0);
 
-    iot_client_log_ota("download_started", "ota_start", status.latest_version, status.latest_build,
-                       0, "Firmware download started", "");
+    iot_client_log_ota("download_started", ota_trigger_to_string(g_ota_trigger),
+                       status.latest_version, status.latest_build, 0, "Firmware download started",
+                       "");
     ota_set_status(OTA_STATE_DOWNLOADING, 0, "Downloading firmware");
 
     while (total_read < content_length) {
@@ -555,4 +557,20 @@ static void sha256_to_hex(const uint8_t* sha, char* out_hex, size_t out_size) {
     }
 
     out_hex[64] = '\0';
+}
+
+static const char* ota_trigger_to_string(ota_trigger_t trigger) {
+    switch (trigger) {
+        case OTA_TRIGGER_MANUAL:
+            return "manual_update";
+
+        case OTA_TRIGGER_AUTO:
+            return "auto_update";
+
+        case OTA_TRIGGER_REMOTE:
+            return "remote_update";
+
+        default:
+            return "unknown_update";
+    }
 }

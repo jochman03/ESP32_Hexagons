@@ -23,6 +23,12 @@ typedef enum {
     OTA_STATE_REBOOTING
 } ota_state_t;
 
+typedef enum {
+    OTA_TRIGGER_MANUAL = 0,
+    OTA_TRIGGER_AUTO,
+    OTA_TRIGGER_REMOTE,
+} ota_trigger_t;
+
 typedef struct {
     ota_state_t state;
 
@@ -43,8 +49,7 @@ typedef struct {
 void ota_update_init(void);
 
 esp_err_t ota_update_check(void);
-esp_err_t ota_update_start_simulated(void);
-esp_err_t ota_update_start(void);
+esp_err_t ota_update_start(ota_trigger_t trigger);
 
 void ota_update_get_status(ota_status_t* out_status);
 

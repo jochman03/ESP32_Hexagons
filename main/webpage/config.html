@@ -193,8 +193,69 @@
             </div>
 
             <div class="actions">
-              <button class="btn btn-primary" id="otaCheckBtn" type="button">Check update</button>
-              <button class="btn btn-primary" id="otaStartBtn" type="button" disabled>Install update</button>
+              <button class="btn btn-primary" id="otaCheckBtn" onclick="checkUpdate()" type="button">Check update</button>
+              <button class="btn btn-primary" id="otaStartBtn" onclick="startUpdate()" type="button" disabled>Install update</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <h3>Maintenance</h3>
+
+        <div class="stack">
+          <div class="group">
+            <p class="group-title">Connectivity</p>
+
+            <div class="row">
+              <label class="label">STA reconnect</label>
+              <label class="toggle">
+                <input type="checkbox" id="wifiRetryEnabled">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              </label>
+            </div>
+
+            <div class="row">
+              <label class="label">Retry every</label>
+              <div class="inline-inputs">
+                <input class="textinput number-input" id="wifiRetryEvery" onchange="checkTimeInputCorrectness()" type="number" min="0" max="60" value="15">
+                <div class="select-wrap time-unit-wrap">
+                  <select class="select" id="wifiRetryUnit" onchange="checkTimeInputCorrectness()">
+                    <option value="0">s</option>
+                    <option value="1">min</option>
+                    <option value="2">h</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="group">
+            <p class="group-title">Firmware</p>
+
+            <div class="row">
+              <label class="label">Auto update</label>
+              <label class="toggle">
+                <input type="checkbox" id="autoUpdateEnabled">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              </label>
+            </div>
+
+            <div class="row">
+              <label class="label">Update every</label>
+              <div class="inline-inputs">
+                <input class="textinput number-input" id="autoUpdateEvery" onchange="checkTimeInputCorrectness()" type="number" min="0" max="60" value="1">
+                <div class="select-wrap time-unit-wrap">
+                  <select class="select" id="autoUpdateUnit" onchange="checkTimeInputCorrectness()">
+                    <option value="0">s</option>
+                    <option value="1">min</option>
+                    <option value="2">h</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-primary" onclick="saveMaintenanceConfig()" type="button">Save maintenance</button>
             </div>
           </div>
         </div>

@@ -26,7 +26,7 @@ static const char* TAG = "WIFI";
 
 static QueueHandle_t wifi_queue = NULL;
 
-static app_wifi_config_full_t gCFG = {0};
+static app_wifi_config_t gCFG = {0};
 static int gRetryCount = 0;
 static bool gHttpStarted = false;
 static bool gTaskStarted = false;
@@ -188,7 +188,7 @@ void wifi_init(void) {
     register_events();
 }
 
-void wifi_start(const app_wifi_config_full_t* cfg) {
+void wifi_start(const app_wifi_config_t* cfg) {
     if (cfg == NULL) {
         ESP_LOGE(TAG, "WiFi config is NULL");
         return;
@@ -237,6 +237,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             case WIFI_EVENT_STA_DISCONNECTED:
                 evt.type = WIFI_EVT_STA_DISCONNECTED;
                 evt.reason = ((wifi_event_sta_disconnected_t*)event_data)->reason;
+                g_sta_connected = false;
                 xQueueSend(wifi_queue, &evt, 0);
                 break;
 
@@ -260,6 +261,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
 
     if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         evt.type = WIFI_EVT_STA_CONNECTED;
+        g_sta_connected = true;
         xQueueSend(wifi_queue, &evt, 0);
     }
 }
@@ -323,9 +325,9 @@ static void wifi_task(void* arg) {
 
                 gRetryCount = 0;
 
-                if (!config_load(&gCFG)) {
+                if (!config_load_wifi(&gCFG)) {
                     ESP_LOGW(TAG, "Config load failed, using defaults");
-                    gCFG = default_config();
+                    config_get_default_wifi(&gCFG);
                 }
 
                 vTaskDelay(pdMS_TO_TICKS(300));
@@ -400,4 +402,18 @@ static void configure_sta_ip(void) {
     ESP_LOGI(TAG, "Gateway: %s", gCFG.sta.gateway);
     ESP_LOGI(TAG, "Netmask: %s", gCFG.sta.netmask);
     ESP_LOGI(TAG, "DNS: %s", gCFG.sta.dns);
+}
+
+bool wifi_sta_is_connected(void) {
+    return g_sta_connected;
+}
+
+void wifi_sta_reconnect(void) {
+    ESP_LOGI(TAG, "STA reconnect requested");
+
+    esp_err_t err = esp_wifi_connect();
+
+    if (err != ESP_OK && err != ESP_ERR_WIFI_CONN) {
+        ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+    }
 }

@@ -10,6 +10,6 @@
 
 #define APP_PROJECT_NAME "ESP32_Hexagons"
 #define APP_VERSION      "1.0.4"
-#define APP_BUILD        31
+#define APP_BUILD        37
 
 #endif

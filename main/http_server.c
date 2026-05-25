@@ -21,10 +21,12 @@
 #include "hex.h"
 #include "config.h"
 #include "wifi.h"
-#include "wifi.h"
 #include "state_save.h"
 #include "ota_update.h"
 #include "app_diagnostics.h"
+
+static bool time_unit_is_valid(int unit);
+static uint8_t clamp_every(int value, int unit);
 
 // Tag used for ESP serial messages
 static const char TAG[] = "HTTP_SERVER";
@@ -76,8 +78,8 @@ static void schedule_wifi_reconfigure(void) {
 }
 
 /*
-    Checks the g_fw_update_status and creates the fw_update_reset timer if the g_fw_update_status is
-   true
+    Checks the g_fw_update_status and creates the fw_update_reset timer if the
+   g_fw_update_status is true
 */
 static void http_server_fw_update_reset_timer(void) {
     if (g_fw_update_status == OTA_UPDATE_SUCCESSFUL) {
@@ -564,9 +566,9 @@ esp_err_t http_server_get_status_handler(httpd_req_t* req) {
 }
 
 esp_err_t http_server_get_config_handler(httpd_req_t* req) {
-    app_wifi_config_full_t cfg = {0};
-    if (!config_load(&cfg)) {
-        cfg = default_config();
+    app_wifi_config_t cfg = {0};
+    if (!config_load_wifi(&cfg)) {
+        config_get_default_wifi(&cfg);
     }
 
     cJSON* root = cJSON_CreateObject();
@@ -647,10 +649,10 @@ esp_err_t http_server_save_ap_config_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
     bool valid_creds = true;
-    app_wifi_config_full_t cfg = {0};
+    app_wifi_config_t cfg = {0};
     memset(&cfg, 0, sizeof(cfg));
-    if (!config_load(&cfg)) {
-        cfg = default_config();
+    if (!config_load_wifi(&cfg)) {
+        config_get_default_wifi(&cfg);
     }
 
     int ap_mode = atoi(ap_mode_json->valuestring);
@@ -692,7 +694,7 @@ esp_err_t http_server_save_ap_config_handler(httpd_req_t* req) {
         valid_creds = false;
     }
     if (valid_creds) {
-        if (!config_update(&cfg)) {
+        if (!config_update_wifi(&cfg)) {
             ESP_LOGE(TAG, "CONFIG SAVE FAILED");
         } else {
             ESP_LOGI(TAG, "CONFIG SAVED OK");
@@ -999,7 +1001,7 @@ esp_err_t http_server_ota_check_handler(httpd_req_t* req) {
 }
 
 esp_err_t http_server_ota_start_handler(httpd_req_t* req) {
-    esp_err_t err = ota_update_start();
+    esp_err_t err = ota_update_start(OTA_TRIGGER_MANUAL);
 
     if (err == ESP_ERR_INVALID_STATE) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
@@ -1014,6 +1016,140 @@ esp_err_t http_server_ota_start_handler(httpd_req_t* req) {
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, "{\"status\":\"started\"}");
+
+    return ESP_OK;
+}
+
+esp_err_t http_server_get_maintenance_config_handler(httpd_req_t* req) {
+    app_maintenance_config_t cfg = {0};
+
+    if (!config_load_maintenance(&cfg)) {
+        config_get_default_maintenance(&cfg);
+    }
+
+    cJSON* root = cJSON_CreateObject();
+
+    if (root == NULL) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    cJSON_AddNumberToObject(root, "wifi_retry_enabled", cfg.wifi_retry.enabled ? 1 : 0);
+    cJSON_AddNumberToObject(root, "wifi_retry_every", cfg.wifi_retry.every);
+    cJSON_AddNumberToObject(root, "wifi_retry_unit", cfg.wifi_retry.unit);
+
+    cJSON_AddNumberToObject(root, "auto_update_enabled", cfg.auto_update.enabled ? 1 : 0);
+    cJSON_AddNumberToObject(root, "auto_update_every", cfg.auto_update.every);
+    cJSON_AddNumberToObject(root, "auto_update_unit", cfg.auto_update.unit);
+
+    char* json = cJSON_PrintUnformatted(root);
+
+    if (json == NULL) {
+        cJSON_Delete(root);
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
+
+    free(json);
+    cJSON_Delete(root);
+
+    return ESP_OK;
+}
+
+esp_err_t http_server_set_maintenance_config_handler(httpd_req_t* req) {
+    int total_len = req->content_len;
+    int cur_len = 0;
+    int received = 0;
+
+    if (total_len <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body");
+        return ESP_FAIL;
+    }
+
+    char* buf = malloc(total_len + 1);
+    if (buf == NULL) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    while (cur_len < total_len) {
+        received = httpd_req_recv(req, buf + cur_len, total_len - cur_len);
+
+        if (received <= 0) {
+            free(buf);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to read body");
+            return ESP_FAIL;
+        }
+
+        cur_len += received;
+    }
+
+    buf[total_len] = '\0';
+
+    ESP_LOGI(TAG, "Received maintenance JSON: %s", buf);
+
+    cJSON* root = cJSON_Parse(buf);
+    free(buf);
+
+    if (root == NULL) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON* wifi_reconnect_enabled = cJSON_GetObjectItem(root, "wifi_retry_enabled");
+    cJSON* wifi_reconnect_every = cJSON_GetObjectItem(root, "wifi_retry_every");
+    cJSON* wifi_reconnect_unit = cJSON_GetObjectItem(root, "wifi_retry_unit");
+
+    cJSON* auto_update_enabled = cJSON_GetObjectItem(root, "auto_update_enabled");
+    cJSON* auto_update_every = cJSON_GetObjectItem(root, "auto_update_every");
+    cJSON* auto_update_unit = cJSON_GetObjectItem(root, "auto_update_unit");
+
+    if (!cJSON_IsNumber(wifi_reconnect_enabled) || !cJSON_IsNumber(wifi_reconnect_every) ||
+        !cJSON_IsNumber(wifi_reconnect_unit) || !cJSON_IsNumber(auto_update_enabled) ||
+        !cJSON_IsNumber(auto_update_every) || !cJSON_IsNumber(auto_update_unit)) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing fields");
+        return ESP_FAIL;
+    }
+
+    if (!time_unit_is_valid(wifi_reconnect_unit->valueint) ||
+        !time_unit_is_valid(auto_update_unit->valueint)) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid time unit");
+        return ESP_FAIL;
+    }
+
+    app_maintenance_config_t cfg = {0};
+
+    if (!config_load_maintenance(&cfg)) {
+        config_get_default_maintenance(&cfg);
+    }
+
+    cfg.wifi_retry.enabled = wifi_reconnect_enabled->valueint ? true : false;
+    cfg.wifi_retry.every =
+        clamp_every(wifi_reconnect_every->valueint, wifi_reconnect_unit->valueint);
+
+    cfg.wifi_retry.unit = (time_unit_t)wifi_reconnect_unit->valueint;
+
+    cfg.auto_update.enabled = auto_update_enabled->valueint ? true : false;
+    cfg.auto_update.every = clamp_every(auto_update_every->valueint, auto_update_unit->valueint);
+
+    cfg.auto_update.unit = (time_unit_t)auto_update_unit->valueint;
+
+    cJSON_Delete(root);
+
+    if (!config_update_maintenance(&cfg)) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Config save failed");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Maintenance config save successful");
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"status\":\"ok\"}");
 
     return ESP_OK;
 }
@@ -1044,7 +1180,7 @@ static httpd_handle_t http_server_configure() {
     config.stack_size = HTTP_SERVER_TASK_STACK_SIZE;
 
     // Increase uri handlers
-    config.max_uri_handlers = 25;
+    config.max_uri_handlers = 30;
 
     // Increase the timeout limits
     config.recv_wait_timeout = 10; // 10 s
@@ -1208,7 +1344,17 @@ static httpd_handle_t http_server_configure() {
                                  .handler = http_server_ota_start_handler,
                                  .user_ctx = NULL};
         httpd_register_uri_handler(http_server_handle, &ota_start);
+        httpd_uri_t getMaintenanceConfig = {.uri = "/maintenanceConfig.json",
+                                            .method = HTTP_GET,
+                                            .handler = http_server_get_maintenance_config_handler,
+                                            .user_ctx = NULL};
+        httpd_register_uri_handler(http_server_handle, &getMaintenanceConfig);
 
+        httpd_uri_t setMaintenanceConfig = {.uri = "/setMaintenanceConfig",
+                                            .method = HTTP_POST,
+                                            .handler = http_server_set_maintenance_config_handler,
+                                            .user_ctx = NULL};
+        httpd_register_uri_handler(http_server_handle, &setMaintenanceConfig);
         return http_server_handle;
     }
     return NULL;
@@ -1245,4 +1391,22 @@ BaseType_t http_server_monitor_send_message(http_server_message_e msgID) {
 void http_server_fw_update_reset_callback(void* arg) {
     ESP_LOGI(TAG, "http_server_fw_update_reset_callback: Timer timed-out, restarting the device");
     esp_restart();
+}
+
+static bool time_unit_is_valid(int unit) {
+    return unit == TIME_SEC || unit == TIME_MIN || unit == TIME_HOUR;
+}
+
+static uint8_t clamp_every(int value, int unit) {
+    if (unit == 0 && value < 10) {
+        value = 10;
+    }
+    if (value < 0) {
+        return 0;
+    }
+    if (value > 60) {
+        return 60;
+    }
+
+    return (uint8_t)value;
 }

@@ -1,3 +1,10 @@
+/*
+ *  app_diagnostics.h
+ *
+ *  Created on: 15 May 2026
+ *  Author: jochman03
+ */
+
 #ifndef MAIN_APP_DIAGNOSTICS_H_
 #define MAIN_APP_DIAGNOSTICS_H_
 

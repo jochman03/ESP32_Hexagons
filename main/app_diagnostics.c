@@ -9,6 +9,7 @@
 #include "app_diagnostics.h"
 #include "iot_client.h"
 #include "app_version.h"
+#include "config.h"
 
 static const char* TAG = "APP_DIAG";
 
@@ -148,6 +149,17 @@ static void app_diagnostics_ota_self_test_task(void* arg) {
                            "Rollback requested", missing_text);
 
         vTaskDelay(pdMS_TO_TICKS(1500));
+
+        app_maintenance_config_t cfg = {0};
+        if (!config_load_maintenance(&cfg)) {
+            config_get_default_maintenance(&cfg);
+        }
+        cfg.auto_update.enabled = false;
+        if (config_update_maintenance(&cfg)) {
+            ESP_LOGW(TAG, "Auto update disabled after rollback request");
+        } else {
+            ESP_LOGE(TAG, "Failed to disable auto update after rollback request");
+        }
 
         esp_ota_mark_app_invalid_rollback_and_reboot();
     }

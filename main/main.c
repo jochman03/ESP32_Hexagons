@@ -18,6 +18,7 @@
 #include "ota_update.h"
 #include "app_diagnostics.h"
 #include "iot_client.h"
+#include "app_maintenance.h"
 
 #define LED_PIN            2
 #define WIFI_RECOVERY_GPIO 4
@@ -28,7 +29,7 @@ void app_main(void) {
     app_diagnostics_init();
     iot_client_init();
 
-    app_wifi_config_full_t cfg;
+    app_wifi_config_t cfg;
 
     hex_init();
     state_save_init();
@@ -41,8 +42,8 @@ void app_main(void) {
         hex_apply_state(&hex_state);
     }
 
-    if (!config_load(&cfg)) {
-        cfg = default_config();
+    if (!config_load_wifi(&cfg)) {
+        config_get_default_wifi(&cfg);
     }
     app_diagnostics_set(APP_DIAG_CONFIG_OK);
 
@@ -50,11 +51,12 @@ void app_main(void) {
         cfg.ap.enabled = true;
         cfg.ap.always_on = true;
 
-        config_save(&cfg);
+        config_save_wifi(&cfg);
     }
 
     wifi_start(&cfg);
     app_diagnostics_start_ota_self_test();
+    app_maintenance_start();
 }
 
 static bool wifi_recovery_button_pressed(void) {

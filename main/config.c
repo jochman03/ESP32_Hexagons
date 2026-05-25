@@ -10,11 +10,15 @@
 
 static const char* TAG = "CONFIG";
 
-#define CONFIG_NAMESPACE "wifi_cfg"
-#define CONFIG_KEY       "cfg"
-#define HEX_STATE_KEY    "hex_cfg"
+#define CONFIG_NAMESPACE "app_cfg"
 
-void config_set_defaults(app_wifi_config_full_t* cfg) {
+#define WIFI_CONFIG_KEY        "wifi"
+#define HEX_CONFIG_KEY         "hex"
+#define MAINTENANCE_CONFIG_KEY "maint"
+
+static const char* time_unit_to_name(time_unit_t unit);
+
+void config_get_default_wifi(app_wifi_config_t* cfg) {
     memset(cfg, 0, sizeof(*cfg));
 
     // STA
@@ -39,13 +43,13 @@ void config_set_defaults(app_wifi_config_full_t* cfg) {
     cfg->version = CONFIG_VERSION;
 }
 
-app_wifi_config_full_t default_config(void) {
-    app_wifi_config_full_t cfg;
-    config_set_defaults(&cfg);
+app_wifi_config_t default_config(void) {
+    app_wifi_config_t cfg;
+    config_get_default_wifi(&cfg);
     return cfg;
 }
 
-bool config_update(app_wifi_config_full_t* new_cfg) {
+bool config_update_wifi(app_wifi_config_t* new_cfg) {
     if (new_cfg == NULL) {
         return false;
     }
@@ -53,10 +57,10 @@ bool config_update(app_wifi_config_full_t* new_cfg) {
     new_cfg->version = CONFIG_VERSION;
     new_cfg->valid = true;
 
-    return config_save(new_cfg);
+    return config_save_wifi(new_cfg);
 }
 
-bool config_save(const app_wifi_config_full_t* cfg) {
+bool config_save_wifi(const app_wifi_config_t* cfg) {
     nvs_handle_t nvs;
     esp_err_t err = nvs_open(CONFIG_NAMESPACE, NVS_READWRITE, &nvs);
 
@@ -65,7 +69,7 @@ bool config_save(const app_wifi_config_full_t* cfg) {
         return false;
     }
 
-    err = nvs_set_blob(nvs, CONFIG_KEY, cfg, sizeof(*cfg));
+    err = nvs_set_blob(nvs, WIFI_CONFIG_KEY, cfg, sizeof(*cfg));
 
     if (err == ESP_OK) {
         err = nvs_commit(nvs);
@@ -85,7 +89,7 @@ bool config_save(const app_wifi_config_full_t* cfg) {
     return true;
 }
 
-bool config_load(app_wifi_config_full_t* cfg) {
+bool config_load_wifi(app_wifi_config_t* cfg) {
     nvs_handle_t nvs;
     size_t size = sizeof(*cfg);
 
@@ -96,7 +100,7 @@ bool config_load(app_wifi_config_full_t* cfg) {
         return false;
     }
 
-    err = nvs_get_blob(nvs, CONFIG_KEY, cfg, &size);
+    err = nvs_get_blob(nvs, WIFI_CONFIG_KEY, cfg, &size);
     nvs_close(nvs);
 
     if (err != ESP_OK) {
@@ -111,12 +115,12 @@ bool config_load(app_wifi_config_full_t* cfg) {
     }
 
     if (!cfg->valid) {
-        ESP_LOGW(TAG, "config invalid flag");
+        ESP_LOGW(TAG, "wifi config invalid.");
         return false;
     }
 
     if (cfg->version != CONFIG_VERSION) {
-        ESP_LOGW(TAG, "config version mismatch: stored=%lu expected=%d",
+        ESP_LOGW(TAG, "wifi config version mismatch: stored=%lu expected=%d",
                  (unsigned long)cfg->version, CONFIG_VERSION);
         return false;
     }
@@ -130,9 +134,9 @@ bool config_load(app_wifi_config_full_t* cfg) {
 bool config_update_ap(const char* ssid, const char* password, uint8_t channel, bool hidden,
                       bool always_on) {
 
-    app_wifi_config_full_t cfg;
+    app_wifi_config_t cfg;
 
-    if (!config_load(&cfg)) {
+    if (!config_load_wifi(&cfg)) {
         cfg = default_config();
     }
 
@@ -150,15 +154,15 @@ bool config_update_ap(const char* ssid, const char* password, uint8_t channel, b
     cfg.valid = true;
     cfg.version = CONFIG_VERSION;
 
-    return config_save(&cfg);
+    return config_save_wifi(&cfg);
 }
 
 bool config_update_sta(const char* ssid, const char* password, bool dhcp, const char* ip,
                        const char* netmask, const char* gateway, const char* dns) {
 
-    app_wifi_config_full_t cfg;
+    app_wifi_config_t cfg;
 
-    if (!config_load(&cfg)) {
+    if (!config_load_wifi(&cfg)) {
         cfg = default_config();
     }
 
@@ -195,13 +199,13 @@ bool config_update_sta(const char* ssid, const char* password, bool dhcp, const 
     cfg.valid = true;
     cfg.version = CONFIG_VERSION;
 
-    return config_save(&cfg);
+    return config_save_wifi(&cfg);
 }
 
 bool config_clear_sta(void) {
-    app_wifi_config_full_t cfg;
+    app_wifi_config_t cfg;
 
-    if (!config_load(&cfg)) {
+    if (!config_load_wifi(&cfg)) {
         cfg = default_config();
     }
 
@@ -221,7 +225,7 @@ bool config_clear_sta(void) {
     cfg.valid = true;
     cfg.version = CONFIG_VERSION;
 
-    return config_save(&cfg);
+    return config_save_wifi(&cfg);
 }
 
 bool config_save_hex_state(const app_hex_config_t* state) {
@@ -237,7 +241,7 @@ bool config_save_hex_state(const app_hex_config_t* state) {
         return false;
     }
 
-    err = nvs_set_blob(nvs, HEX_STATE_KEY, state, sizeof(*state));
+    err = nvs_set_blob(nvs, HEX_CONFIG_KEY, state, sizeof(*state));
 
     if (err == ESP_OK) {
         err = nvs_commit(nvs);
@@ -271,7 +275,7 @@ bool config_load_hex_state(app_hex_config_t* state) {
         return false;
     }
 
-    err = nvs_get_blob(nvs, HEX_STATE_KEY, state, &size);
+    err = nvs_get_blob(nvs, HEX_CONFIG_KEY, state, &size);
     nvs_close(nvs);
 
     if (err != ESP_OK) {
@@ -284,13 +288,155 @@ bool config_load_hex_state(app_hex_config_t* state) {
                  (unsigned)sizeof(*state));
         return false;
     }
+    if (!state->valid) {
+        ESP_LOGW(TAG, "hex config invalid.");
+        return false;
+    }
 
-    if (!state->valid || state->version != HEX_STATE_VERSION) {
-        ESP_LOGW(TAG, "hex state version/valid mismatch");
+    if (state->version != CONFIG_VERSION) {
+        ESP_LOGW(TAG, "hex config version mismatch: stored=%lu expected=%d",
+                 (unsigned long)state->version, CONFIG_VERSION);
         return false;
     }
 
     ESP_LOGI(TAG, "hex state loaded: mode=%u speed=%u", state->mode, state->speed);
 
     return true;
+}
+
+void config_get_default_maintenance(app_maintenance_config_t* cfg) {
+    if (cfg == NULL) {
+        return;
+    }
+
+    memset(cfg, 0, sizeof(*cfg));
+
+    cfg->wifi_retry.enabled = true;
+    cfg->wifi_retry.every = 15;
+    cfg->wifi_retry.unit = TIME_MIN;
+
+    cfg->auto_update.enabled = true;
+    cfg->auto_update.every = 1;
+    cfg->auto_update.unit = TIME_HOUR;
+
+    cfg->valid = true;
+    cfg->version = CONFIG_VERSION;
+}
+
+bool config_save_maintenance(const app_maintenance_config_t* cfg) {
+    if (cfg == NULL) {
+        return false;
+    }
+
+    app_maintenance_config_t save_cfg = *cfg;
+    save_cfg.valid = true;
+    save_cfg.version = CONFIG_VERSION;
+
+    nvs_handle_t nvs;
+    esp_err_t err = nvs_open(CONFIG_NAMESPACE, NVS_READWRITE, &nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "maintenance config nvs_open failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    err = nvs_set_blob(nvs, MAINTENANCE_CONFIG_KEY, &save_cfg, sizeof(save_cfg));
+
+    if (err == ESP_OK) {
+        err = nvs_commit(nvs);
+    }
+
+    nvs_close(nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "maintenance config save failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    ESP_LOGI(TAG,
+             "maintenance config saved: wifi_retry=%d every=%u%s auto_update=%d every=%u%s "
+             "version=%lu size=%u",
+             save_cfg.wifi_retry.enabled, save_cfg.wifi_retry.every,
+             time_unit_to_name(save_cfg.wifi_retry.unit), save_cfg.auto_update.enabled,
+             save_cfg.auto_update.every, time_unit_to_name(save_cfg.auto_update.unit),
+             (unsigned long)save_cfg.version, (unsigned)sizeof(save_cfg));
+
+    return true;
+}
+
+bool config_load_maintenance(app_maintenance_config_t* cfg) {
+    if (cfg == NULL) {
+        return false;
+    }
+
+    nvs_handle_t nvs;
+    size_t size = sizeof(*cfg);
+
+    esp_err_t err = nvs_open(CONFIG_NAMESPACE, NVS_READONLY, &nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "maintenance config nvs_open failed: %s", esp_err_to_name(err));
+        config_get_default_maintenance(cfg);
+        return false;
+    }
+
+    err = nvs_get_blob(nvs, MAINTENANCE_CONFIG_KEY, cfg, &size);
+    nvs_close(nvs);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "maintenance config nvs_get_blob failed: %s", esp_err_to_name(err));
+        config_get_default_maintenance(cfg);
+        return false;
+    }
+
+    if (size != sizeof(*cfg)) {
+        ESP_LOGW(TAG, "maintenance config size mismatch: stored=%u expected=%u", (unsigned)size,
+                 (unsigned)sizeof(*cfg));
+        config_get_default_maintenance(cfg);
+        return false;
+    }
+
+    if (!cfg->valid) {
+        ESP_LOGW(TAG, "maintenance config invalid");
+        config_get_default_maintenance(cfg);
+        return false;
+    }
+
+    if (cfg->version != CONFIG_VERSION) {
+        ESP_LOGW(TAG, "maintenance config version mismatch: stored=%lu expected=%d",
+                 (unsigned long)cfg->version, CONFIG_VERSION);
+        config_get_default_maintenance(cfg);
+        return false;
+    }
+
+    return true;
+}
+
+bool config_update_maintenance(const app_maintenance_config_t* cfg) {
+    if (cfg == NULL) {
+        return false;
+    }
+
+    app_maintenance_config_t new_cfg = *cfg;
+
+    new_cfg.valid = true;
+    new_cfg.version = CONFIG_VERSION;
+
+    return config_save_maintenance(&new_cfg);
+}
+
+static const char* time_unit_to_name(time_unit_t unit) {
+    switch (unit) {
+        case TIME_SEC:
+            return "s";
+
+        case TIME_MIN:
+            return "min";
+
+        case TIME_HOUR:
+            return "h";
+
+        default:
+            return "?";
+    }
 }

@@ -273,11 +273,88 @@ async function startUpdate() {
     await loadOTAStatus();
 }
 
-document.getElementById("otaCheckBtn").addEventListener("click", checkUpdate);
-document.getElementById("otaStartBtn").addEventListener("click", startUpdate);
+function clampEvery(value) {
+    const n = Number(value);
+
+    if (Number.isNaN(n)) {
+        return 0;
+    }
+
+    if (n < 0) {
+        return 0;
+    }
+
+    if (n > 60) {
+        return 60;
+    }
+
+    return n;
+}
+
+async function loadMaintenanceConfig() {
+    const res = await fetch("/maintenanceConfig.json");
+
+    if (!res.ok) {
+        console.error("Maintenance config load failed:", await res.text());
+        return;
+    }
+
+    const cfg = await res.json();
+
+    document.getElementById("wifiRetryEnabled").checked = cfg.wifi_retry_enabled == 1;
+    document.getElementById("wifiRetryEvery").value = String(cfg.wifi_retry_every);
+    document.getElementById("wifiRetryUnit").value = String(cfg.wifi_retry_unit);
+
+    document.getElementById("autoUpdateEnabled").checked = cfg.auto_update_enabled == 1;
+    document.getElementById("autoUpdateEvery").value = String(cfg.auto_update_every);
+    document.getElementById("autoUpdateUnit").value = String(cfg.auto_update_unit);
+}
+
+async function saveMaintenanceConfig() {
+    const payload = {
+        wifi_retry_enabled: document.getElementById("wifiRetryEnabled").checked ? 1 : 0,
+        wifi_retry_every: clampEvery(document.getElementById("wifiRetryEvery").value),
+        wifi_retry_unit: Number(document.getElementById("wifiRetryUnit").value),
+
+        auto_update_enabled: document.getElementById("autoUpdateEnabled").checked ? 1 : 0,
+        auto_update_every: clampEvery(document.getElementById("autoUpdateEvery").value),
+        auto_update_unit: Number(document.getElementById("autoUpdateUnit").value)
+    };
+
+    const res = await fetch("/setMaintenanceConfig", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+        console.error("Maintenance config save failed:", await res.text());
+        return;
+    }
+
+    console.log("Maintenance config saved");
+    await loadMaintenanceConfig();
+}
+
+function checkTimeInputCorrectness() {
+    const wifi_retry_time_input = document.getElementById("wifiRetryEvery");
+    const wifi_retry_unit_input = document.getElementById("wifiRetryUnit");
+    const auto_update_time_input = document.getElementById("autoUpdateEvery");
+    const auto_update_unit_input = document.getElementById("autoUpdateUnit");
+
+    if (wifi_retry_unit_input.value == 0) {
+        wifi_retry_time_input.value = Math.max(wifi_retry_time_input.value, 10);
+    }
+    if (auto_update_unit_input.value == 0) {
+        auto_update_time_input.value = Math.max(auto_update_time_input.value, 10);
+    }
+}
 
 setInterval(loadOTAStatus, 1000);
-loadOTAStatus();
 
+loadOTAStatus();
 loadConfig();
 loadWifiStatus();
+loadMaintenanceConfig();

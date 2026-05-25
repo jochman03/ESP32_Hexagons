@@ -468,6 +468,36 @@ input[type="file"] {
   touch-action: none;
 }
 
+.inline-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 260px;
+}
+
+.number-input {
+  width: 90px;
+  max-width: 90px;
+  flex: 0 0 90px;
+  text-align: center;
+}
+
+.unit-select {
+  width: 110px;
+  max-width: 110px;
+  flex: 0 0 110px;
+}
+
+.number-input::-webkit-outer-spin-button,
+.number-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.number-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 @media (max-width: 700px) {
   .canvas-wrap {
     height: 360px;
@@ -489,6 +519,21 @@ input[type="file"] {
   }
   .panel {
     grid-template-columns: 1fr;
+  }
+  .inline-inputs {
+    max-width: 100%;
+  }
+
+  .number-input {
+    width: 100%;
+    max-width: none;
+    flex: 1;
+  }
+
+  .unit-select {
+    width: 110px;
+    max-width: 110px;
+    flex: 0 0 110px;
   }
 }
 
