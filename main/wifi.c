@@ -45,6 +45,7 @@ static void start_wifi_from_config(void);
 static void start_fallback_ap(void);
 static void start_http_once(void);
 static void configure_sta_ip(void);
+static void stop_fallback_ap(void);
 
 static void start_http_once(void) {
     if (!gHttpStarted) {
@@ -54,7 +55,7 @@ static void start_http_once(void) {
 }
 
 static bool sta_configured(void) {
-    return strlen(gCFG.sta.ssid) > 0;
+    return gCFG.sta.enabled && strlen(gCFG.sta.ssid) > 0;
 }
 
 static void register_events(void) {
@@ -284,6 +285,9 @@ static void wifi_task(void* arg) {
             case WIFI_EVT_STA_CONNECTED:
                 ESP_LOGI(TAG, "STA connected");
                 gRetryCount = 0;
+
+                stop_fallback_ap();
+
                 app_diagnostics_set(APP_DIAG_WIFI_OK);
                 start_http_once();
                 break;
@@ -302,7 +306,13 @@ static void wifi_task(void* arg) {
                              STA_CONNECTION_RETRY_COUNT);
 
                     vTaskDelay(pdMS_TO_TICKS(500));
-                    esp_wifi_connect();
+                    esp_err_t err = esp_wifi_connect();
+
+                    if (err == ESP_ERR_WIFI_CONN) {
+                        ESP_LOGI(TAG, "STA connection already in progress");
+                    } else if (err != ESP_OK) {
+                        ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+                    }
                 } else {
                     ESP_LOGW(TAG, "STA connection failed");
 
@@ -409,11 +419,66 @@ bool wifi_sta_is_connected(void) {
 }
 
 void wifi_sta_reconnect(void) {
+    if (!sta_configured()) {
+        ESP_LOGI(TAG, "STA reconnect skipped, STA not configured");
+        return;
+    }
+
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    esp_err_t err = esp_wifi_get_mode(&mode);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_get_mode failed: %s", esp_err_to_name(err));
+        return;
+    }
+
     ESP_LOGI(TAG, "STA reconnect requested");
 
-    esp_err_t err = esp_wifi_connect();
+    if (mode == WIFI_MODE_AP) {
+        ESP_LOGI(TAG, "Switching AP to APSTA without stopping WiFi");
 
-    if (err != ESP_OK && err != ESP_ERR_WIFI_CONN) {
+        err = esp_wifi_set_mode(WIFI_MODE_APSTA);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "esp_wifi_set_mode(APSTA) failed: %s", esp_err_to_name(err));
+            return;
+        }
+
+        configure_sta();
+        configure_sta_ip();
+
+        gRetryCount = 0;
+    }
+
+    err = esp_wifi_connect();
+
+    if (err == ESP_ERR_WIFI_CONN) {
+        ESP_LOGI(TAG, "STA reconnect already in progress");
+        return;
+    }
+
+    if (err != ESP_OK) {
         ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
     }
+}
+
+static void stop_fallback_ap(void) {
+    if (gCFG.ap.always_on) {
+        return;
+    }
+
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    esp_err_t err = esp_wifi_get_mode(&mode);
+
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_get_mode failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    if (mode != WIFI_MODE_APSTA) {
+        return;
+    }
+
+    ESP_LOGI(TAG, "STA connected, disabling fallback AP");
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 }
