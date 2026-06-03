@@ -30,6 +30,7 @@ static app_wifi_config_t gCFG = {0};
 static int gRetryCount = 0;
 static bool gHttpStarted = false;
 static bool gTaskStarted = false;
+static volatile bool gStaConnected = false;
 
 static esp_netif_t* sta_netif = NULL;
 static esp_netif_t* ap_netif = NULL;
@@ -238,7 +239,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             case WIFI_EVENT_STA_DISCONNECTED:
                 evt.type = WIFI_EVT_STA_DISCONNECTED;
                 evt.reason = ((wifi_event_sta_disconnected_t*)event_data)->reason;
-                g_sta_connected = false;
+                gStaConnected = false;
                 xQueueSend(wifi_queue, &evt, 0);
                 break;
 
@@ -262,7 +263,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
 
     if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         evt.type = WIFI_EVT_STA_CONNECTED;
-        g_sta_connected = true;
+        gStaConnected = true;
         xQueueSend(wifi_queue, &evt, 0);
     }
 }
@@ -415,7 +416,7 @@ static void configure_sta_ip(void) {
 }
 
 bool wifi_sta_is_connected(void) {
-    return g_sta_connected;
+    return gStaConnected;
 }
 
 void wifi_sta_reconnect(void) {

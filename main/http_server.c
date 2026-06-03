@@ -341,6 +341,11 @@ esp_err_t http_server_set_speed_handler(httpd_req_t* req) {
     int cur_len = 0;
     int received = 0;
 
+    if (total_len <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty body");
+        return ESP_FAIL;
+    }
+
     char* buf = malloc(total_len + 1);
     if (!buf) {
         httpd_resp_send_500(req);
@@ -360,24 +365,33 @@ esp_err_t http_server_set_speed_handler(httpd_req_t* req) {
     ESP_LOGI(TAG, "Received JSON: %s", buf);
 
     cJSON* root = cJSON_Parse(buf);
+    free(buf);
+
     if (!root) {
-        free(buf);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
         return ESP_FAIL;
     }
 
     cJSON* value = cJSON_GetObjectItem(root, "value");
-    if (!cJSON_IsString(value)) {
+    if (!cJSON_IsString(value) && !cJSON_IsNumber(value)) {
         cJSON_Delete(root);
-        free(buf);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing value");
         return ESP_FAIL;
     }
 
-    int speed = atoi(value->valuestring);
-    if (speed > 49 && speed < 201) {
-        hex_set_speed(speed);
+    int speed = cJSON_IsString(value) ? atoi(value->valuestring) : value->valueint;
+
+    if (speed < 50 || speed > 200) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid speed");
+        return ESP_FAIL;
     }
+
+    hex_set_speed((uint8_t)speed);
+
+    cJSON_Delete(root);
+    httpd_resp_sendstr(req, "OK");
+
     return ESP_OK;
 }
 

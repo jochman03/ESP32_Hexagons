@@ -6,7 +6,6 @@
 
 #include "config.h"
 
-#define HEX_COUNT  15
 #define STRIP_GPIO 18
 
 typedef enum { STATIC, STARLIGHT, FADE } HexMode_T;

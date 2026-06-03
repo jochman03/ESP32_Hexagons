@@ -24,8 +24,6 @@ typedef struct {
     int reason;
 } wifi_evt_t;
 
-static volatile bool g_sta_connected = false;
-
 void wifi_init(void);
 void wifi_start(const app_wifi_config_t* cfg);
 void wifi_reconfigure(void);

@@ -232,12 +232,16 @@ esp_err_t ota_update_check(void) {
 }
 
 esp_err_t ota_update_start(ota_trigger_t trigger) {
-    bool can_start = false;
-
     if (g_ota_mutex != NULL) {
         xSemaphoreTake(g_ota_mutex, portMAX_DELAY);
     }
-    can_start = g_ota_status.update_available && !g_ota_status.update_running;
+
+    bool can_start = g_ota_status.update_available && !g_ota_status.update_running;
+
+    if (can_start) {
+        g_ota_status.update_running = true;
+        g_ota_trigger = trigger;
+    }
 
     if (g_ota_mutex != NULL) {
         xSemaphoreGive(g_ota_mutex);
@@ -246,11 +250,12 @@ esp_err_t ota_update_start(ota_trigger_t trigger) {
     if (!can_start) {
         return ESP_ERR_INVALID_STATE;
     }
-    g_ota_trigger = trigger;
+
     BaseType_t task_ok = xTaskCreate(ota_task, "ota_task", 8192, NULL, 5, NULL);
 
     if (task_ok != pdPASS) {
         ota_set_status(OTA_STATE_FAILED, 0, "Failed to start OTA task");
+        ota_set_running(false);
         return ESP_FAIL;
     }
 
