@@ -27,8 +27,8 @@ typedef struct {
 void wifi_init(void);
 void wifi_start(const app_wifi_config_t* cfg);
 void wifi_reconfigure(void);
-bool wifi_sta_is_connected(void);
 void wifi_sta_reconnect(void);
+bool wifi_sta_is_connected(void);
 
 esp_netif_t* wifi_get_sta_netif(void);
 

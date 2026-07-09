@@ -27,7 +27,7 @@ uint8_t hex_get_color_r(int hexIndex);
 uint8_t hex_get_color_g(int hexIndex);
 uint8_t hex_get_color_b(int hexIndex);
 
-bool hex_get_state(app_hex_config_t* state);
-bool hex_apply_state(const app_hex_config_t* state);
+bool hex_get_state(hex_config_t* state);
+bool hex_apply_state(const hex_config_t* state);
 
 #endif /* MAIN_HEX_H_ */

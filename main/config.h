@@ -24,8 +24,8 @@
 #define DEFAULT_AP_SSID  "HEX AP"
 #define DEFAULT_AP_PASS  "pass1234"
 
-#define DEFAULT_IP      "192.168.1.50"
-#define DEFAULT_GATEWAY "192.168.1.1"
+#define DEFAULT_IP      "192.168.2.83"
+#define DEFAULT_GATEWAY "192.168.2.1"
 #define DEFAULT_MASK    "255.255.255.0"
 #define DEFAULT_DNS     "8.8.8.8"
 
@@ -72,7 +72,7 @@ typedef struct {
     uint8_t speed;
     uint8_t colors[HEX_COUNT * 3];
 
-} app_hex_config_t;
+} hex_config_t;
 
 typedef enum {
     TIME_SEC = 0,
@@ -92,7 +92,7 @@ typedef struct {
 
     interval_setting_t wifi_retry;
     interval_setting_t auto_update;
-} app_maintenance_config_t;
+} maintenance_config_t;
 
 void config_get_default_wifi(app_wifi_config_t* cfg);
 
@@ -106,12 +106,12 @@ bool config_update_ap(const char* ssid, const char* password, uint8_t channel, b
 bool config_update_sta(const char* ssid, const char* password, bool dhcp, const char* ip,
                        const char* netmask, const char* gateway, const char* dns);
 
-bool config_save_hex_state(const app_hex_config_t* state);
-bool config_load_hex_state(app_hex_config_t* state);
+bool config_save_hex_state(const hex_config_t* state);
+bool config_load_hex_state(hex_config_t* state);
 
-void config_get_default_maintenance(app_maintenance_config_t* cfg);
-bool config_load_maintenance(app_maintenance_config_t* cfg);
-bool config_save_maintenance(const app_maintenance_config_t* cfg);
-bool config_update_maintenance(const app_maintenance_config_t* cfg);
+void config_get_default_maintenance(maintenance_config_t* cfg);
+bool config_load_maintenance(maintenance_config_t* cfg);
+bool config_save_maintenance(const maintenance_config_t* cfg);
+bool config_update_maintenance(const maintenance_config_t* cfg);
 
 #endif /* MAIN_CONFIG_H_ */

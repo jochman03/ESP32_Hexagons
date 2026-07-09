@@ -228,7 +228,7 @@ bool config_clear_sta(void) {
     return config_save_wifi(&cfg);
 }
 
-bool config_save_hex_state(const app_hex_config_t* state) {
+bool config_save_hex_state(const hex_config_t* state) {
     if (state == NULL) {
         return false;
     }
@@ -260,7 +260,7 @@ bool config_save_hex_state(const app_hex_config_t* state) {
     return true;
 }
 
-bool config_load_hex_state(app_hex_config_t* state) {
+bool config_load_hex_state(hex_config_t* state) {
     if (state == NULL) {
         return false;
     }
@@ -304,7 +304,7 @@ bool config_load_hex_state(app_hex_config_t* state) {
     return true;
 }
 
-void config_get_default_maintenance(app_maintenance_config_t* cfg) {
+void config_get_default_maintenance(maintenance_config_t* cfg) {
     if (cfg == NULL) {
         return;
     }
@@ -323,12 +323,12 @@ void config_get_default_maintenance(app_maintenance_config_t* cfg) {
     cfg->version = CONFIG_VERSION;
 }
 
-bool config_save_maintenance(const app_maintenance_config_t* cfg) {
+bool config_save_maintenance(const maintenance_config_t* cfg) {
     if (cfg == NULL) {
         return false;
     }
 
-    app_maintenance_config_t save_cfg = *cfg;
+    maintenance_config_t save_cfg = *cfg;
     save_cfg.valid = true;
     save_cfg.version = CONFIG_VERSION;
 
@@ -364,7 +364,7 @@ bool config_save_maintenance(const app_maintenance_config_t* cfg) {
     return true;
 }
 
-bool config_load_maintenance(app_maintenance_config_t* cfg) {
+bool config_load_maintenance(maintenance_config_t* cfg) {
     if (cfg == NULL) {
         return false;
     }
@@ -385,7 +385,14 @@ bool config_load_maintenance(app_maintenance_config_t* cfg) {
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "maintenance config nvs_get_blob failed: %s", esp_err_to_name(err));
+
         config_get_default_maintenance(cfg);
+
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGI(TAG, "maintenance config not found, saving defaults");
+            config_save_maintenance(cfg);
+        }
+
         return false;
     }
 
@@ -412,12 +419,12 @@ bool config_load_maintenance(app_maintenance_config_t* cfg) {
     return true;
 }
 
-bool config_update_maintenance(const app_maintenance_config_t* cfg) {
+bool config_update_maintenance(const maintenance_config_t* cfg) {
     if (cfg == NULL) {
         return false;
     }
 
-    app_maintenance_config_t new_cfg = *cfg;
+    maintenance_config_t new_cfg = *cfg;
 
     new_cfg.valid = true;
     new_cfg.version = CONFIG_VERSION;

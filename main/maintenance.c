@@ -1,4 +1,4 @@
-#include "app_maintenance.h"
+#include "maintenance.h"
 
 #include "config.h"
 #include "ota_update.h"
@@ -9,7 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-static const char* TAG = "APP_MAINT";
+static const char* TAG = "MAINTENANCE";
 
 #define MAINTENANCE_TASK_STACK_SIZE 4096
 #define MAINTENANCE_TASK_PRIORITY   3
@@ -18,9 +18,24 @@ static const char* TAG = "APP_MAINT";
 #define MAINTENANCE_CONFIG_REFRESH_SEC 5
 #define MAINTENANCE_START_DELAY_MS     10000
 
-static TaskHandle_t app_maintenance_task_handle = NULL;
+static TaskHandle_t maintenance_task_handle = NULL;
 
-static void app_maintenance_task(void* arg);
+static void maintenance_task(void* arg);
+static uint32_t interval_to_seconds(const interval_setting_t* setting);
+
+void maintenance_start(void) {
+    if (maintenance_task_handle != NULL) {
+        return;
+    }
+
+    BaseType_t ok = xTaskCreate(maintenance_task, "maintenance", MAINTENANCE_TASK_STACK_SIZE, NULL,
+                                MAINTENANCE_TASK_PRIORITY, &maintenance_task_handle);
+
+    if (ok != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create maintenance task");
+        maintenance_task_handle = NULL;
+    }
+}
 
 static uint32_t interval_to_seconds(const interval_setting_t* setting) {
     if (setting == NULL || !setting->enabled || setting->every == 0) {
@@ -42,23 +57,8 @@ static uint32_t interval_to_seconds(const interval_setting_t* setting) {
     }
 }
 
-void app_maintenance_start(void) {
-    if (app_maintenance_task_handle != NULL) {
-        return;
-    }
-
-    BaseType_t ok =
-        xTaskCreate(app_maintenance_task, "app_maintenance", MAINTENANCE_TASK_STACK_SIZE, NULL,
-                    MAINTENANCE_TASK_PRIORITY, &app_maintenance_task_handle);
-
-    if (ok != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create maintenance task");
-        app_maintenance_task_handle = NULL;
-    }
-}
-
-static void app_maintenance_task(void* arg) {
-    app_maintenance_config_t cfg;
+static void maintenance_task(void* arg) {
+    maintenance_config_t cfg;
 
     config_get_default_maintenance(&cfg);
     config_load_maintenance(&cfg);

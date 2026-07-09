@@ -8,7 +8,7 @@
 
 #include "hex.h"
 #include "state_save.h"
-#include "app_diagnostics.h"
+#include "self_test.h"
 
 static const char* TAG = "HEX";
 led_strip_handle_t gStrip;
@@ -91,7 +91,7 @@ void hex_init() {
     memset(gTargetColorBuffer, 0, sizeof(gTargetColorBuffer));
     memset(gTargetColorFrame, 0, sizeof(gTargetColorFrame));
 
-    app_diagnostics_set(APP_DIAG_LED_OK);
+    self_test_set_flags(SELF_TEST_LED_OK);
     ESP_LOGI(TAG, "init done");
     xTaskCreatePinnedToCore(&hex_task, "HEX_task", HEX_TASK_STACK_SIZE, NULL, HEX_TASK_PRIORITY,
                             NULL, HEX_TASK_CORE_ID);
@@ -214,7 +214,7 @@ uint8_t hex_get_color_b(int hexIndex) {
     return color;
 }
 
-bool hex_get_state(app_hex_config_t* state) {
+bool hex_get_state(hex_config_t* state) {
     if (state == NULL) {
         return false;
     }
@@ -236,7 +236,7 @@ bool hex_get_state(app_hex_config_t* state) {
     return true;
 }
 
-bool hex_apply_state(const app_hex_config_t* state) {
+bool hex_apply_state(const hex_config_t* state) {
     if (state == NULL) {
         return false;
     }

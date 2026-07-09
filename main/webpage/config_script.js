@@ -2,7 +2,7 @@ async function loadConfig() {
     const res = await fetch("/getConfig.json");
     const data = await res.json();
 
-    console.log(data);
+    // console.log(data);
 
     // AP
     let apMode = document.getElementById("apMode");
@@ -161,38 +161,6 @@ async function disconnectSTA() {
 
     document.getElementById("staSsid").value = "";
     document.getElementById("staPassword").value = "";
-}
-
-async function uploadOTA() {
-    const fileInput = document.getElementById("otaFile");
-    const fileName = document.getElementById("otaFileName");
-
-    if (!fileInput.files.length) {
-        console.error("No firmware file selected");
-        return;
-    }
-
-    const file = fileInput.files[0];
-    fileName.textContent = file.name;
-
-    console.log("Uploading OTA:", file.name, file.size, "bytes");
-
-    const res = await fetch("/OTAupdate", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/octet-stream"
-        },
-        body: file
-    });
-
-    if (!res.ok) {
-        console.error("OTA upload failed:", await res.text());
-        return;
-    }
-
-    console.log("OTA upload finished");
-
-    await checkOTAStatus();
 }
 
 async function checkOTAStatus() {

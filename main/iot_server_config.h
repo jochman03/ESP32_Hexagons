@@ -2,7 +2,7 @@
 #define MAIN_IOT_SERVER_CONFIG_H_
 
 #define IOT_SERVER_SCHEME "http"
-#define IOT_SERVER_HOST   "127.0.0.1"
+#define IOT_SERVER_HOST   "192.168.2.80"
 #define IOT_SERVER_PORT   ""
 
 #define IOT_BASE_PATH    "/iot"

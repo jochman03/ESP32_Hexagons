@@ -20,7 +20,7 @@
 #include "config.h"
 #include "wifi.h"
 #include "http_server.h"
-#include "app_diagnostics.h"
+#include "self_test.h"
 
 static const char* TAG = "WIFI";
 
@@ -289,7 +289,7 @@ static void wifi_task(void* arg) {
 
                 stop_fallback_ap();
 
-                app_diagnostics_set(APP_DIAG_WIFI_OK);
+                self_test_set_flags(SELF_TEST_WIFI_OK);
                 start_http_once();
                 break;
 
@@ -325,7 +325,7 @@ static void wifi_task(void* arg) {
 
             case WIFI_EVT_AP_STARTED:
                 ESP_LOGI(TAG, "AP started");
-                app_diagnostics_set(APP_DIAG_WIFI_OK);
+                self_test_set_flags(SELF_TEST_WIFI_OK);
                 start_http_once();
                 break;
 

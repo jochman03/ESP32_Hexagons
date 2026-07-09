@@ -23,7 +23,7 @@
 #include "wifi.h"
 #include "state_save.h"
 #include "ota_update.h"
-#include "app_diagnostics.h"
+#include "self_test.h"
 
 static bool time_unit_is_valid(int unit);
 static uint8_t clamp_every(int value, int unit);
@@ -1035,7 +1035,7 @@ esp_err_t http_server_ota_start_handler(httpd_req_t* req) {
 }
 
 esp_err_t http_server_get_maintenance_config_handler(httpd_req_t* req) {
-    app_maintenance_config_t cfg = {0};
+    maintenance_config_t cfg = {0};
 
     if (!config_load_maintenance(&cfg)) {
         config_get_default_maintenance(&cfg);
@@ -1136,7 +1136,7 @@ esp_err_t http_server_set_maintenance_config_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
 
-    app_maintenance_config_t cfg = {0};
+    maintenance_config_t cfg = {0};
 
     if (!config_load_maintenance(&cfg)) {
         config_get_default_maintenance(&cfg);
@@ -1378,7 +1378,7 @@ void http_server_start(void) {
     if (http_server_handle == NULL) {
         http_server_handle = http_server_configure();
         if (http_server_handle != NULL) {
-            app_diagnostics_set(APP_DIAG_HTTP_OK);
+            self_test_set_flags(SELF_TEST_HTTP_OK);
         }
     }
 }

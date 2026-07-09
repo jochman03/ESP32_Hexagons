@@ -6,57 +6,56 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 
-#include "app_diagnostics.h"
+#include "self_test.h"
 #include "iot_client.h"
 #include "app_version.h"
 #include "config.h"
 
-static const char* TAG = "APP_DIAG";
+static const char* TAG = "SELF_TEST";
 
-static EventGroupHandle_t app_diag_events = NULL;
+static EventGroupHandle_t self_test_events = NULL;
 
-static void app_diagnostics_ota_self_test_task(void* arg);
-static void app_diagnostics_missing_flags_to_string(uint32_t missing_flags, char* out,
-                                                    size_t out_size);
-void app_diagnostics_init(void) {
-    app_diag_events = xEventGroupCreate();
+static void self_test_ota_task(void* arg);
+static void flags_to_string(uint32_t missing_flags, char* out, size_t out_size);
+void self_test_init(void) {
+    self_test_events = xEventGroupCreate();
 
-    if (app_diag_events == NULL) {
+    if (self_test_events == NULL) {
         ESP_LOGE(TAG, "Failed to create diagnostics event group");
     }
 }
 
-void app_diagnostics_set(uint32_t flag) {
-    if (app_diag_events == NULL) {
+void self_test_set_flags(uint32_t flag) {
+    if (self_test_events == NULL) {
         return;
     }
 
-    xEventGroupSetBits(app_diag_events, flag);
+    xEventGroupSetBits(self_test_events, flag);
 }
 
-void app_diagnostics_clear(uint32_t flag) {
-    if (app_diag_events == NULL) {
+void self_test_clear_flags(uint32_t flag) {
+    if (self_test_events == NULL) {
         return;
     }
 
-    xEventGroupClearBits(app_diag_events, flag);
+    xEventGroupClearBits(self_test_events, flag);
 }
 
-uint32_t app_diagnostics_get_flags(void) {
-    if (app_diag_events == NULL) {
+uint32_t self_test_get_flags(void) {
+    if (self_test_events == NULL) {
         return 0;
     }
 
-    return xEventGroupGetBits(app_diag_events);
+    return xEventGroupGetBits(self_test_events);
 }
 
-bool app_diagnostics_is_healthy(void) {
-    uint32_t flags = app_diagnostics_get_flags();
+bool self_test_passed(void) {
+    uint32_t flags = self_test_get_flags();
 
-    return (flags & APP_DIAG_REQUIRED_MASK) == APP_DIAG_REQUIRED_MASK;
+    return (flags & SELF_TEST_REQUIRED_MASK) == SELF_TEST_REQUIRED_MASK;
 }
 
-void app_diagnostics_start_ota_self_test(void) {
+void self_test_start_ota(void) {
     const esp_partition_t* running_partition = esp_ota_get_running_partition();
 
     if (running_partition == NULL) {
@@ -80,32 +79,31 @@ void app_diagnostics_start_ota_self_test(void) {
 
     iot_client_log_ota("booted_after_update", "pending_verify", APP_VERSION, APP_BUILD, 0,
                        "New firmware booted after OTA", "");
-    ESP_LOGW(TAG, "Application is pending OTA verification, starting self-test");
+    ESP_LOGW(TAG, "Application is pending OTA verification, starting self test");
 
-    BaseType_t task_created =
-        xTaskCreate(app_diagnostics_ota_self_test_task, "ota_self_test", 4096, NULL, 5, NULL);
+    BaseType_t task_created = xTaskCreate(self_test_ota_task, "ota_self_test", 4096, NULL, 5, NULL);
 
     if (task_created != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create OTA self-test task");
+        ESP_LOGE(TAG, "Failed to create OTA task");
     }
 }
 
-static void app_diagnostics_ota_self_test_task(void* arg) {
+static void self_test_ota_task(void* arg) {
     ESP_LOGI(TAG, "OTA self-test started");
-    iot_client_log_ota("self_test_started", "health_check_started", APP_VERSION, APP_BUILD, 100,
-                       "Self-test started", "");
+    iot_client_log_ota("self_test_started", "self_test_started", APP_VERSION, APP_BUILD, 100,
+                       "self test started", "");
     vTaskDelay(pdMS_TO_TICKS(10000));
 
-    uint32_t flags = app_diagnostics_get_flags();
+    uint32_t flags = self_test_get_flags();
 
     ESP_LOGI(TAG, "Diagnostics flags: 0x%lx", flags);
-    ESP_LOGI(TAG, "Required flags:    0x%lx", (uint32_t)APP_DIAG_REQUIRED_MASK);
+    ESP_LOGI(TAG, "Required flags:    0x%lx", (uint32_t)SELF_TEST_REQUIRED_MASK);
 
-    if (app_diagnostics_is_healthy()) {
+    if (self_test_passed()) {
         ESP_LOGI(TAG, "OTA self-test passed, marking app valid");
 
-        iot_client_log_ota("self_test_passed", "health_check_ok", APP_VERSION, APP_BUILD, 100,
-                           "Self-test passed", "");
+        iot_client_log_ota("self_test_passed", "self_test_ok", APP_VERSION, APP_BUILD, 100,
+                           "self test passed", "");
 
         vTaskDelay(pdMS_TO_TICKS(1000));
 
@@ -117,12 +115,12 @@ static void app_diagnostics_ota_self_test_task(void* arg) {
     } else {
         ESP_LOGE(TAG, "OTA self-test failed, rolling back");
 
-        uint32_t required = APP_DIAG_REQUIRED_MASK;
+        uint32_t required = SELF_TEST_REQUIRED_MASK;
         uint32_t missing = required & ~flags;
 
         char missing_text[128];
 
-        app_diagnostics_missing_flags_to_string(missing, missing_text, sizeof(missing_text));
+        flags_to_string(missing, missing_text, sizeof(missing_text));
 
         iot_ota_log_event_t failed_event = {0};
 
@@ -150,7 +148,7 @@ static void app_diagnostics_ota_self_test_task(void* arg) {
 
         vTaskDelay(pdMS_TO_TICKS(1500));
 
-        app_maintenance_config_t cfg = {0};
+        maintenance_config_t cfg = {0};
         if (!config_load_maintenance(&cfg)) {
             config_get_default_maintenance(&cfg);
         }
@@ -166,27 +164,26 @@ static void app_diagnostics_ota_self_test_task(void* arg) {
 
     vTaskDelete(NULL);
 }
-static void app_diagnostics_missing_flags_to_string(uint32_t missing_flags, char* out,
-                                                    size_t out_size) {
+static void flags_to_string(uint32_t flags, char* out, size_t out_size) {
     if (out == NULL || out_size == 0) {
         return;
     }
 
     out[0] = '\0';
 
-    if (missing_flags & APP_DIAG_CONFIG_OK) {
+    if (flags & SELF_TEST_CONFIG_OK) {
         strncat(out, "CONFIG_OK,", out_size - strlen(out) - 1);
     }
 
-    if (missing_flags & APP_DIAG_WIFI_OK) {
+    if (flags & SELF_TEST_WIFI_OK) {
         strncat(out, "WIFI_OK,", out_size - strlen(out) - 1);
     }
 
-    if (missing_flags & APP_DIAG_HTTP_OK) {
+    if (flags & SELF_TEST_HTTP_OK) {
         strncat(out, "HTTP_OK,", out_size - strlen(out) - 1);
     }
 
-    if (missing_flags & APP_DIAG_LED_OK) {
+    if (flags & SELF_TEST_LED_OK) {
         strncat(out, "LED_OK,", out_size - strlen(out) - 1);
     }
 
