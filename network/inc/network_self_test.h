@@ -1,12 +1,12 @@
 /*
- *  self_test.h
+ *  network_self_test.h
  *
  *  Created on: 15 May 2026
  *  Author: jochman03
  */
 
-#ifndef MAIN_SELF_TEST_H_
-#define MAIN_SELF_TEST_H_
+#ifndef NETWORK_SELF_TEST_H
+#define NETWORK_SELF_TEST_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -29,4 +29,4 @@ bool self_test_passed(void);
 
 void self_test_start_ota(void);
 
-#endif
+#endif // NETWORK_SELF_TEST_H

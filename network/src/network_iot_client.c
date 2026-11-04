@@ -1,5 +1,3 @@
-#include "iot_client.h"
-
 #include <stdio.h>
 #include <string.h>
 
@@ -13,7 +11,9 @@
 #include "freertos/task.h"
 
 #include "app_version.h"
-#include "iot_server_config.h"
+
+#include "network_iot_config.h"
+#include "network_iot_client.h"
 
 static const char* TAG = "IOT_CLIENT";
 

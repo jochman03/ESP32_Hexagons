@@ -1,12 +1,12 @@
 /*
- *  http_server.h
+ *  network_http_server.h
  *
  *  Created on: 27 Dec 2025
  *  Author: jochman03
  */
 
-#ifndef MAIN_HTTP_SERVER_H_
-#define MAIN_HTTP_SERVER_H_
+#ifndef NETWORK_HTTP_SERVER_H
+#define NETWORK_HTTP_SERVER_H
 
 #include <freertos/FreeRTOS.h>
 
@@ -50,4 +50,4 @@ Timer callback function which calls esp_restart upon successful firmware update
 */
 void http_server_fw_update_reset_callback(void* arg);
 
-#endif /* MAIN_HTTP_SERVER_H_ */
+#endif /* NETWORK_HTTP_SERVER_H */

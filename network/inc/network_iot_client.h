@@ -1,5 +1,5 @@
-#ifndef MAIN_IOT_CLIENT_H_
-#define MAIN_IOT_CLIENT_H_
+#ifndef NETWORK_IOT_CLIENT_H
+#define NETWORK_IOT_CLIENT_H
 
 #include <stdint.h>
 #include "esp_err.h"
@@ -31,4 +31,4 @@ esp_err_t iot_client_log_ota_event(const iot_ota_log_event_t* event);
 esp_err_t iot_client_log_ota(const char* state, const char* reason, const char* target_version,
                              int target_build, int progress, const char* message,
                              const char* error);
-#endif
+#endif // NETWORK_IOT_CLIENT_H

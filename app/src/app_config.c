@@ -2,13 +2,14 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "config.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "nvs.h"
-#include "hex.h"
 
-static const char* TAG = "CONFIG";
+#include "app_config.h"
+#include "app_hex.h"
+
+static const char* TAG = "APP_CONFIG";
 
 #define CONFIG_NAMESPACE "app_cfg"
 

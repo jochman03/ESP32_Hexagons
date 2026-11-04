@@ -7,20 +7,20 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
-
 #include "lwip/inet.h"
 #include "lwip/ip_addr.h"
 #include "lwip/sockets.h"
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
 #include "tasks_common.h"
-#include "config.h"
-#include "wifi.h"
-#include "http_server.h"
-#include "self_test.h"
+
+#include "app_config.h"
+
+#include "network_wifi.h"
+#include "network_http_server.h"
+#include "network_self_test.h"
 
 static const char* TAG = "WIFI";
 

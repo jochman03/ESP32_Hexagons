@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS
+        src/app_hex.c
+        src/app_state.c
+        src/app_config.c
+    INCLUDE_DIRS 
+        "inc"
+    PRIV_REQUIRES
+        platform
+        nvs_flash
+)

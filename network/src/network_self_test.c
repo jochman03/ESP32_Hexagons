@@ -6,10 +6,11 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 
-#include "self_test.h"
-#include "iot_client.h"
 #include "app_version.h"
-#include "config.h"
+#include "app_config.h"
+
+#include "network_self_test.h"
+#include "network_iot_client.h"
 
 static const char* TAG = "SELF_TEST";
 

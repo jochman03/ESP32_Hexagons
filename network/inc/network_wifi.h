@@ -1,14 +1,14 @@
 /*
- *  wifi.h
+ *  network_wifi.h
  *
  *  Created on: 14 Apr 2026
  *  Author: jochman03
  */
 
-#ifndef MAIN_WIFI_H_
-#define MAIN_WIFI_H_
+#ifndef NETWORK_WIFI_H
+#define NETWORK_WIFI_H
 
-#include "config.h"
+#include "app_config.h"
 #include "esp_netif.h"
 
 typedef enum {
@@ -32,4 +32,4 @@ bool wifi_sta_is_connected(void);
 
 esp_netif_t* wifi_get_sta_netif(void);
 
-#endif /* MAIN_WIFI_H_ */
+#endif /* NETWORK_WIFI_H */

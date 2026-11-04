@@ -10,7 +10,6 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#include "http_server.h"
 #include "freertos/idf_additions.h"
 #include "portmacro.h"
 #include "cJSON.h"
@@ -18,12 +17,15 @@
 #include "esp_netif.h"
 
 #include "tasks_common.h"
-#include "hex.h"
-#include "config.h"
-#include "wifi.h"
-#include "state_save.h"
-#include "ota_update.h"
-#include "self_test.h"
+
+#include "network_wifi.h"
+#include "network_ota.h"
+#include "network_self_test.h"
+#include "network_http_server.h"
+
+#include "app_hex.h"
+#include "app_config.h"
+#include "app_state.h"
 
 static bool time_unit_is_valid(int unit);
 static uint8_t clamp_every(int value, int unit);

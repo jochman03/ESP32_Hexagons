@@ -5,11 +5,11 @@
  *  Author: jochman03
  */
 
-#ifndef MAIN_APP_VERSION_H_
-#define MAIN_APP_VERSION_H_
+#ifndef APP_VERSION_H
+#define APP_VERSION_H
 
 #define APP_PROJECT_NAME "ESP32_Hexagons"
 #define APP_VERSION      "1.0.4"
 #define APP_BUILD        38
 
-#endif
+#endif // APP_VERSION_H

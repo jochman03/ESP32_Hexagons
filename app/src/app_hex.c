@@ -3,15 +3,17 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "tasks_common.h"
-#include "led_strip.h"
 #include "esp_log.h"
 
-#include "hex.h"
-#include "state_save.h"
-#include "self_test.h"
+#include "platform_led.h"
 
-static const char* TAG = "HEX";
-led_strip_handle_t gStrip;
+#include "app_config.h"
+#include "app_state.h"
+#include "app_hex.h"
+
+#define HEX_COUNT 15
+
+static const char* TAG = "APP_HEX";
 
 // Semaphore
 static SemaphoreHandle_t gStateMutex;
@@ -59,19 +61,6 @@ static bool color_equals(const uint8_t a[3], const uint8_t b[3]) {
 }
 
 void hex_init() {
-    led_strip_config_t hStripConfig = {
-        .strip_gpio_num = STRIP_GPIO,
-        .max_leds = HEX_COUNT,
-        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
-        .led_model = LED_MODEL_WS2812,
-        .flags.invert_out = false,
-    };
-
-    led_strip_rmt_config_t hRmtConfig = {
-        .resolution_hz = 10 * 1000 * 1000,
-        .flags.with_dma = false,
-    };
-
     for (uint8_t i = 0; i < HEX_COUNT; ++i) {
         gHexes[i].active = false;
         gHexes[i].hold = 0;
@@ -80,8 +69,6 @@ void hex_init() {
         }
     }
 
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&hStripConfig, &hRmtConfig, &gStrip));
-    ESP_ERROR_CHECK(led_strip_clear(gStrip));
     gStateMutex = xSemaphoreCreateMutex();
     if (gStateMutex == NULL) {
         ESP_LOGE(TAG, "Failed to create HEX state mutex");
@@ -91,7 +78,6 @@ void hex_init() {
     memset(gTargetColorBuffer, 0, sizeof(gTargetColorBuffer));
     memset(gTargetColorFrame, 0, sizeof(gTargetColorFrame));
 
-    self_test_set_flags(SELF_TEST_LED_OK);
     ESP_LOGI(TAG, "init done");
     xTaskCreatePinnedToCore(&hex_task, "HEX_task", HEX_TASK_STACK_SIZE, NULL, HEX_TASK_PRIORITY,
                             NULL, HEX_TASK_CORE_ID);
@@ -110,7 +96,7 @@ void hex_set_color(int hexIndex, uint8_t r, uint8_t g, uint8_t b) {
         xSemaphoreGive(gStateMutex);
     }
 
-    state_save_notify();
+    app_state_notify();
 }
 
 HexMode_T hex_get_mode(void) {
@@ -130,7 +116,7 @@ void hex_set_mode(HexMode_T mode) {
         xSemaphoreGive(gStateMutex);
     }
 
-    state_save_notify();
+    app_state_notify();
 }
 
 void hex_set_speed(uint8_t speed) {
@@ -143,7 +129,7 @@ void hex_set_speed(uint8_t speed) {
         xSemaphoreGive(gStateMutex);
     }
 
-    state_save_notify();
+    app_state_notify();
 }
 
 uint8_t hex_get_speed(void) {
@@ -161,7 +147,7 @@ void hex_set_enabled(bool enabled) {
     if (xSemaphoreTake(gStateMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         gOutputEnabled = enabled;
         xSemaphoreGive(gStateMutex);
-        state_save_notify();
+        app_state_notify();
     }
 }
 
@@ -289,11 +275,11 @@ static void hex_animate() {
 
             step_color(gHexes[i].currentColor, black);
 
-            led_strip_set_pixel(gStrip, i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
-                                gHexes[i].currentColor[2]);
+            platform_led_set_pixel(i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
+                                   gHexes[i].currentColor[2]);
         }
 
-        led_strip_refresh(gStrip);
+        platform_led_refresh();
         return;
     }
     switch (gAnimationModeBuffer) {
@@ -303,8 +289,8 @@ static void hex_animate() {
                 get_target_hex_color(i, targetColor);
                 step_color(gHexes[i].currentColor, targetColor);
 
-                led_strip_set_pixel(gStrip, i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
-                                    gHexes[i].currentColor[2]);
+                platform_led_set_pixel(i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
+                                       gHexes[i].currentColor[2]);
             }
             break;
         case STARLIGHT:
@@ -344,8 +330,8 @@ static void hex_animate() {
                         gHexes[i].active = false;
                     }
                 }
-                led_strip_set_pixel(gStrip, i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
-                                    gHexes[i].currentColor[2]);
+                platform_led_set_pixel(i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
+                                       gHexes[i].currentColor[2]);
             }
             break;
         case FADE:
@@ -382,12 +368,12 @@ static void hex_animate() {
                 }
                 step_color(gHexes[i].currentColor, targetColor);
 
-                led_strip_set_pixel(gStrip, i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
-                                    gHexes[i].currentColor[2]);
+                platform_led_set_pixel(i, gHexes[i].currentColor[0], gHexes[i].currentColor[1],
+                                       gHexes[i].currentColor[2]);
             }
             break;
     }
-    led_strip_refresh(gStrip);
+    platform_led_refresh();
 }
 
 static void hex_task(void* pvParameter) {

@@ -1,16 +1,17 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "driver/gpio.h"
 #include "esp_log.h"
 
-#include "hex.h"
-#include "state_save.h"
+#include "platform_board.h"
+
+#include "app_config.h"
+#include "app_hex.h"
+#include "app_state.h"
 
 #define STATE_SAVE_DELAY_MS 30000
-#define USER_LED_GPIO       GPIO_NUM_2
 
-static const char* TAG = "STATE_SAVE";
+static const char* TAG = "APP_STATE";
 
 typedef struct {
     uint8_t dummy;
@@ -19,31 +20,18 @@ typedef struct {
 static QueueHandle_t state_save_queue = NULL;
 
 static void state_save_task(void* arg);
-static void user_led_blink(void);
 
-void state_save_init(void) {
+void app_state_init(void) {
     state_save_queue = xQueueCreate(1, sizeof(state_save_evt_t));
 
     if (state_save_queue == NULL) {
         ESP_LOGE(TAG, "Failed to create state_save_queue");
         return;
     }
-
-    gpio_config_t led_cfg = {
-        .pin_bit_mask = 1ULL << USER_LED_GPIO,
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-
-    gpio_config(&led_cfg);
-    gpio_set_level(USER_LED_GPIO, 0);
-
     xTaskCreate(state_save_task, "state_save_task", 4096, NULL, 4, NULL);
 }
 
-void state_save_notify(void) {
+void app_state_notify(void) {
     if (state_save_queue == NULL) {
         return;
     }
@@ -75,7 +63,11 @@ static void state_save_task(void* arg) {
             if (hex_get_state(&current_state)) {
                 if (config_save_hex_state(&current_state)) {
                     ESP_LOGI(TAG, "State saved");
-                    user_led_blink();
+
+                    platform_board_status_led_set(true);
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                    platform_board_status_led_set(false);
+
                 } else {
                     ESP_LOGE(TAG, "State save failed");
                 }
@@ -83,10 +75,4 @@ static void state_save_task(void* arg) {
             break;
         }
     }
-}
-
-static void user_led_blink(void) {
-    gpio_set_level(USER_LED_GPIO, 1);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    gpio_set_level(USER_LED_GPIO, 0);
 }

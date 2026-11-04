@@ -1,12 +1,12 @@
 /*
- *  ota_update.h
+ *  network_ota.h
  *
  *  Created on: 15 May 2026
  *  Author: jochman03
  */
 
-#ifndef MAIN_OTA_UPDATE_H_
-#define MAIN_OTA_UPDATE_H_
+#ifndef NETWORK_OTA_H
+#define NETWORK_OTA_H
 
 #include "esp_err.h"
 #include <stdbool.h>
@@ -53,4 +53,4 @@ esp_err_t ota_update_start(ota_trigger_t trigger);
 
 void ota_update_get_status(ota_status_t* out_status);
 
-#endif
+#endif // NETWORK_OTA_H

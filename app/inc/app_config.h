@@ -1,12 +1,12 @@
 /*
- *  config.h
+ *  app_config.h
  *
  *  Created on: 14 Apr 2026
  *  Author: jochman03
  */
 
-#ifndef MAIN_CONFIG_H_
-#define MAIN_CONFIG_H_
+#ifndef APP_CONFIG_H
+#define APP_CONFIG_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -114,4 +114,4 @@ bool config_load_maintenance(maintenance_config_t* cfg);
 bool config_save_maintenance(const maintenance_config_t* cfg);
 bool config_update_maintenance(const maintenance_config_t* cfg);
 
-#endif /* MAIN_CONFIG_H_ */
+#endif // APP_CONFIG_H

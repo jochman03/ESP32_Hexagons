@@ -1,19 +1,10 @@
-#ifndef MAIN_HEX_H_
-#define MAIN_HEX_H_
+#ifndef APP_HEX_H
+#define APP_HEX_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "config.h"
-
-#define STRIP_GPIO 48
-
-typedef enum
-{
-    STATIC,
-    STARLIGHT,
-    FADE
-} HexMode_T;
+typedef enum { STATIC, STARLIGHT, FADE } HexMode_T;
 
 void hex_init(void);
 
@@ -32,7 +23,7 @@ uint8_t hex_get_color_r(int hexIndex);
 uint8_t hex_get_color_g(int hexIndex);
 uint8_t hex_get_color_b(int hexIndex);
 
-bool hex_get_state(hex_config_t *state);
-bool hex_apply_state(const hex_config_t *state);
+bool hex_get_state(hex_config_t* state);
+bool hex_apply_state(const hex_config_t* state);
 
-#endif /* MAIN_HEX_H_ */
+#endif // APP_HEX_H

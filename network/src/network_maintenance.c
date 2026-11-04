@@ -1,13 +1,12 @@
-#include "maintenance.h"
-
-#include "config.h"
-#include "ota_update.h"
-#include "wifi.h"
-
 #include "esp_log.h"
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+#include "app_config.h"
+
+#include "network_maintenance.h"
+#include "network_ota.h"
+#include "network_wifi.h"
 
 static const char* TAG = "MAINTENANCE";
 

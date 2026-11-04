@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS
+        "src/platform_board.c"
+        "src/platform_led.c"
+    INCLUDE_DIRS
+        "inc"
+    PRIV_REQUIRES
+        esp_driver_gpio
+        freertos
+        led_strip
+)

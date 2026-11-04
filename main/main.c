@@ -7,32 +7,32 @@
 
 #include <stdio.h>
 #include <freertos/FreeRTOS.h>
-#include "driver/gpio.h"
-#include "nvs_flash.h"
 #include "esp_log.h"
 
-#include "wifi.h"
-#include "config.h"
-#include "hex.h"
-#include "state_save.h"
-#include "ota_update.h"
-#include "self_test.h"
-#include "iot_client.h"
-#include "maintenance.h"
+#include "platform_led.h"
+#include "platform_board.h"
 
-#define LED_PIN            2
-#define WIFI_RECOVERY_GPIO 4
+#include "app_config.h"
+#include "app_hex.h"
+#include "app_state.h"
 
-static bool wifi_recovery_button_pressed(void);
+#include "network_wifi.h"
+#include "network_ota.h"
+#include "network_self_test.h"
+#include "network_iot_client.h"
+#include "network_maintenance.h"
 
 void app_main(void) {
     self_test_init();
     iot_client_init();
 
-    app_wifi_config_t cfg;
+    platform_board_init();
 
+    platform_led_init();
     hex_init();
-    state_save_init();
+    self_test_set_flags(SELF_TEST_LED_OK);
+
+    app_state_init();
     ota_update_init();
 
     wifi_init();
@@ -42,12 +42,15 @@ void app_main(void) {
         hex_apply_state(&hex_state);
     }
 
+    app_wifi_config_t cfg;
+
     if (!config_load_wifi(&cfg)) {
         config_get_default_wifi(&cfg);
     }
     self_test_set_flags(SELF_TEST_CONFIG_OK);
+    vTaskDelay(pdMS_TO_TICKS(50));
 
-    if (wifi_recovery_button_pressed()) {
+    if (platform_board_recovery_pressed()) {
         cfg.ap.enabled = true;
         cfg.ap.always_on = true;
 
@@ -57,20 +60,4 @@ void app_main(void) {
     wifi_start(&cfg);
     self_test_start_ota();
     maintenance_start();
-}
-
-static bool wifi_recovery_button_pressed(void) {
-    gpio_config_t cfg = {
-        .pin_bit_mask = 1ULL << WIFI_RECOVERY_GPIO,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-
-    gpio_config(&cfg);
-
-    vTaskDelay(pdMS_TO_TICKS(50));
-
-    return gpio_get_level(WIFI_RECOVERY_GPIO) == 0;
 }

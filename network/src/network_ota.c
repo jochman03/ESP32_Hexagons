@@ -1,5 +1,3 @@
-#include "ota_update.h"
-
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -16,8 +14,10 @@
 #include "mbedtls/sha256.h"
 
 #include "app_version.h"
-#include "iot_server_config.h"
-#include "iot_client.h"
+
+#include "network_ota.h"
+#include "network_iot_config.h"
+#include "network_iot_client.h"
 
 static const char* TAG = "OTA_UPDATE";
 
