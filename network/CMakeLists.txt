@@ -6,6 +6,7 @@ idf_component_register(
         "src/network_iot_client.c"
         "src/network_maintenance.c"
         "src/network_self_test.c"
+        "src/network_config.c"
 
     INCLUDE_DIRS
         "inc"

@@ -22,10 +22,11 @@
 #include "network_ota.h"
 #include "network_self_test.h"
 #include "network_http_server.h"
+#include "network_config.h"
 
 #include "app_hex.h"
-#include "app_config.h"
 #include "app_state.h"
+#include "app_config.h"
 
 static bool time_unit_is_valid(int unit);
 static uint8_t clamp_every(int value, int unit);
@@ -582,9 +583,9 @@ esp_err_t http_server_get_status_handler(httpd_req_t* req) {
 }
 
 esp_err_t http_server_get_config_handler(httpd_req_t* req) {
-    app_wifi_config_t cfg = {0};
-    if (!config_load_wifi(&cfg)) {
-        config_get_default_wifi(&cfg);
+    network_config_wifi_t cfg = {0};
+    if (!network_config_wifi_load(&cfg)) {
+        network_config_wifi_default(&cfg);
     }
 
     cJSON* root = cJSON_CreateObject();
@@ -665,10 +666,10 @@ esp_err_t http_server_save_ap_config_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
     bool valid_creds = true;
-    app_wifi_config_t cfg = {0};
+    network_config_wifi_t cfg = {0};
     memset(&cfg, 0, sizeof(cfg));
-    if (!config_load_wifi(&cfg)) {
-        config_get_default_wifi(&cfg);
+    if (!network_config_wifi_load(&cfg)) {
+        network_config_wifi_default(&cfg);
     }
 
     int ap_mode = atoi(ap_mode_json->valuestring);
@@ -710,7 +711,7 @@ esp_err_t http_server_save_ap_config_handler(httpd_req_t* req) {
         valid_creds = false;
     }
     if (valid_creds) {
-        if (!config_update_wifi(&cfg)) {
+        if (!network_config_wifi_update(&cfg)) {
             ESP_LOGE(TAG, "CONFIG SAVE FAILED");
         } else {
             ESP_LOGI(TAG, "CONFIG SAVED OK");
@@ -789,7 +790,7 @@ esp_err_t http_server_save_sta_config_handler(httpd_req_t* req) {
     const char* gateway = cJSON_IsString(sta_gateway) ? sta_gateway->valuestring : "";
     const char* dns = cJSON_IsString(sta_dns) ? sta_dns->valuestring : "";
 
-    bool ok = config_update_sta(ssid, pass, dhcp, ip, mask, gateway, dns);
+    bool ok = network_config_sta_update(ssid, pass, dhcp, ip, mask, gateway, dns);
 
     cJSON_Delete(root);
 
@@ -862,7 +863,7 @@ esp_err_t http_server_get_wifi_status_handler(httpd_req_t* req) {
 }
 
 esp_err_t http_server_disconnect_sta_handler(httpd_req_t* req) {
-    bool ok = config_clear_sta();
+    bool ok = network_config_sta_clear();
 
     if (!ok) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Config save failed");
@@ -1037,10 +1038,10 @@ esp_err_t http_server_ota_start_handler(httpd_req_t* req) {
 }
 
 esp_err_t http_server_get_maintenance_config_handler(httpd_req_t* req) {
-    maintenance_config_t cfg = {0};
+    network_config_maintenance_t cfg = {0};
 
-    if (!config_load_maintenance(&cfg)) {
-        config_get_default_maintenance(&cfg);
+    if (!network_config_maintenance_load(&cfg)) {
+        network_config_maintenance_default(&cfg);
     }
 
     cJSON* root = cJSON_CreateObject();
@@ -1050,13 +1051,13 @@ esp_err_t http_server_get_maintenance_config_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
 
-    cJSON_AddNumberToObject(root, "wifi_retry_enabled", cfg.wifi_retry.enabled ? 1 : 0);
-    cJSON_AddNumberToObject(root, "wifi_retry_every", cfg.wifi_retry.every);
-    cJSON_AddNumberToObject(root, "wifi_retry_unit", cfg.wifi_retry.unit);
+    cJSON_AddNumberToObject(root, "wifi_retry_enabled", cfg.wifi_retry_interval.enabled ? 1 : 0);
+    cJSON_AddNumberToObject(root, "wifi_retry_every", cfg.wifi_retry_interval.every);
+    cJSON_AddNumberToObject(root, "wifi_retry_unit", cfg.wifi_retry_interval.unit);
 
-    cJSON_AddNumberToObject(root, "auto_update_enabled", cfg.auto_update.enabled ? 1 : 0);
-    cJSON_AddNumberToObject(root, "auto_update_every", cfg.auto_update.every);
-    cJSON_AddNumberToObject(root, "auto_update_unit", cfg.auto_update.unit);
+    cJSON_AddNumberToObject(root, "auto_update_enabled", cfg.auto_update_interval.enabled ? 1 : 0);
+    cJSON_AddNumberToObject(root, "auto_update_every", cfg.auto_update_interval.every);
+    cJSON_AddNumberToObject(root, "auto_update_unit", cfg.auto_update_interval.unit);
 
     char* json = cJSON_PrintUnformatted(root);
 
@@ -1138,26 +1139,27 @@ esp_err_t http_server_set_maintenance_config_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
 
-    maintenance_config_t cfg = {0};
+    network_config_maintenance_t cfg = {0};
 
-    if (!config_load_maintenance(&cfg)) {
-        config_get_default_maintenance(&cfg);
+    if (!network_config_maintenance_load(&cfg)) {
+        network_config_maintenance_default(&cfg);
     }
 
-    cfg.wifi_retry.enabled = wifi_reconnect_enabled->valueint ? true : false;
-    cfg.wifi_retry.every =
+    cfg.wifi_retry_interval.enabled = wifi_reconnect_enabled->valueint ? true : false;
+    cfg.wifi_retry_interval.every =
         clamp_every(wifi_reconnect_every->valueint, wifi_reconnect_unit->valueint);
 
-    cfg.wifi_retry.unit = (time_unit_t)wifi_reconnect_unit->valueint;
+    cfg.wifi_retry_interval.unit = (network_interval_unit_t)wifi_reconnect_unit->valueint;
 
-    cfg.auto_update.enabled = auto_update_enabled->valueint ? true : false;
-    cfg.auto_update.every = clamp_every(auto_update_every->valueint, auto_update_unit->valueint);
+    cfg.auto_update_interval.enabled = auto_update_enabled->valueint ? true : false;
+    cfg.auto_update_interval.every =
+        clamp_every(auto_update_every->valueint, auto_update_unit->valueint);
 
-    cfg.auto_update.unit = (time_unit_t)auto_update_unit->valueint;
+    cfg.auto_update_interval.unit = (network_interval_unit_t)auto_update_unit->valueint;
 
     cJSON_Delete(root);
 
-    if (!config_update_maintenance(&cfg)) {
+    if (!network_config_maintenance_update(&cfg)) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Config save failed");
         return ESP_FAIL;
     }
@@ -1410,7 +1412,7 @@ void http_server_fw_update_reset_callback(void* arg) {
 }
 
 static bool time_unit_is_valid(int unit) {
-    return unit == TIME_SEC || unit == TIME_MIN || unit == TIME_HOUR;
+    return unit == NETWORK_TIME_SEC || unit == NETWORK_TIME_MIN || unit == NETWORK_TIME_HOUR;
 }
 
 static uint8_t clamp_every(int value, int unit) {

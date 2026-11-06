@@ -21,6 +21,7 @@
 #include "network_self_test.h"
 #include "network_iot_client.h"
 #include "network_maintenance.h"
+#include "network_config.h"
 
 void app_main(void) {
     self_test_init();
@@ -36,16 +37,16 @@ void app_main(void) {
     ota_update_init();
 
     wifi_init();
-    hex_config_t hex_state;
+    app_config_hex_t hex_state;
 
-    if (config_load_hex_state(&hex_state)) {
+    if (app_config_hex_load(&hex_state)) {
         hex_apply_state(&hex_state);
     }
 
-    app_wifi_config_t cfg;
+    network_config_wifi_t cfg;
 
-    if (!config_load_wifi(&cfg)) {
-        config_get_default_wifi(&cfg);
+    if (!network_config_wifi_load(&cfg)) {
+        network_config_wifi_default(&cfg);
     }
     self_test_set_flags(SELF_TEST_CONFIG_OK);
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -54,7 +55,7 @@ void app_main(void) {
         cfg.ap.enabled = true;
         cfg.ap.always_on = true;
 
-        config_save_wifi(&cfg);
+        network_config_wifi_save(&cfg);
     }
 
     wifi_start(&cfg);

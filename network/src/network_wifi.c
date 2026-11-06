@@ -26,7 +26,7 @@ static const char* TAG = "WIFI";
 
 static QueueHandle_t wifi_queue = NULL;
 
-static app_wifi_config_t gCFG = {0};
+static network_config_wifi_t gCFG = {0};
 static int gRetryCount = 0;
 static bool gHttpStarted = false;
 static bool gTaskStarted = false;
@@ -190,7 +190,7 @@ void wifi_init(void) {
     register_events();
 }
 
-void wifi_start(const app_wifi_config_t* cfg) {
+void wifi_start(const network_config_wifi_t* cfg) {
     if (cfg == NULL) {
         ESP_LOGE(TAG, "WiFi config is NULL");
         return;
@@ -336,9 +336,9 @@ static void wifi_task(void* arg) {
 
                 gRetryCount = 0;
 
-                if (!config_load_wifi(&gCFG)) {
+                if (!network_config_wifi_load(&gCFG)) {
                     ESP_LOGW(TAG, "Config load failed, using defaults");
-                    config_get_default_wifi(&gCFG);
+                    network_config_wifi_default(&gCFG);
                 }
 
                 vTaskDelay(pdMS_TO_TICKS(300));

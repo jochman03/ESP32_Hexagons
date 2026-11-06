@@ -7,10 +7,10 @@
 #include "freertos/task.h"
 
 #include "app_version.h"
-#include "app_config.h"
 
 #include "network_self_test.h"
 #include "network_iot_client.h"
+#include "network_config.h"
 
 static const char* TAG = "SELF_TEST";
 
@@ -149,12 +149,12 @@ static void self_test_ota_task(void* arg) {
 
         vTaskDelay(pdMS_TO_TICKS(1500));
 
-        maintenance_config_t cfg = {0};
-        if (!config_load_maintenance(&cfg)) {
-            config_get_default_maintenance(&cfg);
+        network_config_maintenance_t cfg = {0};
+        if (!network_config_maintenance_load(&cfg)) {
+            network_config_maintenance_default(&cfg);
         }
-        cfg.auto_update.enabled = false;
-        if (config_update_maintenance(&cfg)) {
+        cfg.auto_update_interval.enabled = false;
+        if (network_config_maintenance_update(&cfg)) {
             ESP_LOGW(TAG, "Auto update disabled after rollback request");
         } else {
             ESP_LOGE(TAG, "Failed to disable auto update after rollback request");

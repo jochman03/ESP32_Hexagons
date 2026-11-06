@@ -10,6 +10,7 @@
 
 #include "app_config.h"
 #include "esp_netif.h"
+#include "network_config.h"
 
 typedef enum {
     WIFI_EVT_STA_STARTED,
@@ -25,7 +26,7 @@ typedef struct {
 } wifi_evt_t;
 
 void wifi_init(void);
-void wifi_start(const app_wifi_config_t* cfg);
+void wifi_start(const network_config_wifi_t* cfg);
 void wifi_reconfigure(void);
 void wifi_sta_reconnect(void);
 bool wifi_sta_is_connected(void);

@@ -2,11 +2,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "app_config.h"
-
 #include "network_maintenance.h"
 #include "network_ota.h"
 #include "network_wifi.h"
+#include "network_config.h"
 
 static const char* TAG = "MAINTENANCE";
 
@@ -20,7 +19,7 @@ static const char* TAG = "MAINTENANCE";
 static TaskHandle_t maintenance_task_handle = NULL;
 
 static void maintenance_task(void* arg);
-static uint32_t interval_to_seconds(const interval_setting_t* setting);
+static uint32_t interval_to_seconds(const network_interval_t* setting);
 
 void maintenance_start(void) {
     if (maintenance_task_handle != NULL) {
@@ -36,19 +35,19 @@ void maintenance_start(void) {
     }
 }
 
-static uint32_t interval_to_seconds(const interval_setting_t* setting) {
+static uint32_t interval_to_seconds(const network_interval_t* setting) {
     if (setting == NULL || !setting->enabled || setting->every == 0) {
         return 0;
     }
 
     switch (setting->unit) {
-        case TIME_SEC:
+        case NETWORK_TIME_SEC:
             return setting->every;
 
-        case TIME_MIN:
+        case NETWORK_TIME_MIN:
             return setting->every * 60;
 
-        case TIME_HOUR:
+        case NETWORK_TIME_HOUR:
             return setting->every * 3600;
 
         default:
@@ -57,10 +56,10 @@ static uint32_t interval_to_seconds(const interval_setting_t* setting) {
 }
 
 static void maintenance_task(void* arg) {
-    maintenance_config_t cfg;
+    network_config_maintenance_t cfg;
 
-    config_get_default_maintenance(&cfg);
-    config_load_maintenance(&cfg);
+    network_config_maintenance_default(&cfg);
+    network_config_maintenance_load(&cfg);
 
     uint32_t uptime_sec = 0;
     uint32_t last_config_load = 0;
@@ -77,15 +76,15 @@ static void maintenance_task(void* arg) {
         uptime_sec++;
 
         if ((uptime_sec - last_config_load) >= MAINTENANCE_CONFIG_REFRESH_SEC) {
-            if (!config_load_maintenance(&cfg)) {
-                config_get_default_maintenance(&cfg);
+            if (!network_config_maintenance_load(&cfg)) {
+                network_config_maintenance_default(&cfg);
             }
 
             last_config_load = uptime_sec;
         }
 
-        uint32_t wifi_retry_sec = interval_to_seconds(&cfg.wifi_retry);
-        uint32_t auto_update_sec = interval_to_seconds(&cfg.auto_update);
+        uint32_t wifi_retry_sec = interval_to_seconds(&cfg.wifi_retry_interval);
+        uint32_t auto_update_sec = interval_to_seconds(&cfg.auto_update_interval);
 
         if (wifi_retry_sec > 0 && !wifi_sta_is_connected()) {
             if ((uptime_sec - last_wifi_retry) >= wifi_retry_sec) {

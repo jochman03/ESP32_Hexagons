@@ -59,9 +59,9 @@ static void state_save_task(void* arg) {
             }
 
             ESP_LOGI(TAG, "Saving state to NVS");
-            hex_config_t current_state;
+            app_config_hex_t current_state;
             if (hex_get_state(&current_state)) {
-                if (config_save_hex_state(&current_state)) {
+                if (app_config_hex_save(&current_state)) {
                     ESP_LOGI(TAG, "State saved");
 
                     platform_board_status_led_set(true);

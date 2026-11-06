@@ -200,7 +200,7 @@ uint8_t hex_get_color_b(int hexIndex) {
     return color;
 }
 
-bool hex_get_state(hex_config_t* state) {
+bool hex_get_state(app_config_hex_t* state) {
     if (state == NULL) {
         return false;
     }
@@ -222,7 +222,7 @@ bool hex_get_state(hex_config_t* state) {
     return true;
 }
 
-bool hex_apply_state(const hex_config_t* state) {
+bool hex_apply_state(const app_config_hex_t* state) {
     if (state == NULL) {
         return false;
     }
